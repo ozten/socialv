@@ -15,8 +15,8 @@ SDK in `../openboard/sdk/typescript`.
 - **The board holds the coordination state.** Each unit of work is a board
   task with dependencies. Workers claim tasks under leases. Questions,
   approvals and results are messages in the task's thread.
-- **Runners sleep; agents do not.** A small process per role holds a
-  long-poll on the board. It starts a language-model session only when it
+- **Workers sleep; agents do not.** Each role runs under `openboard tasks
+  run`, which holds a long-poll on the board. It starts a language-model session only when it
   has claimed a task or been mentioned, and the session ends when the work
   does. Idle costs nothing.
 - **Agents talk to each other on the board.** An agent session has the
@@ -42,9 +42,9 @@ SDK in `../openboard/sdk/typescript`.
 flowchart LR
   P[Owner<br/>browser] -->|approve, review, mention| B[(Openboard<br/>local board)]
   C[Conductor<br/>code] <-->|tasks, gates, events| B
-  R1[Runner: tool workers<br/>code] <-->|claim, settle| B
-  R2[Runner: agent roles<br/>code] <-->|claim, mentions, settle| B
-  R3[Runner: judges<br/>code] <-->|claim, settle| B
+  R1[Tool workers<br/>tasks run + step] <-->|claim, settle| B
+  R2[Agent roles<br/>tasks run + step] <-->|claim, mentions, settle| B
+  R3[Judges<br/>tasks run + step] <-->|claim, settle| B
   G[Spend gateway<br/>code, holds FAL_KEY] <-->|claim, verify approval| B
   R2 -->|starts per task or mention| A[Agent session<br/>claude -p]
   A <-->|reply, ask, mention| B
@@ -160,41 +160,37 @@ and avoids the first.
 
 ### 4.1 The runner
 
-A runner is about a hundred lines of code around the SDK:
+We do not write a runner. Openboard ships one: `openboard tasks run`. Every
+worker, whether a tool, an agent role, a judge or the gateway, is this
+loop:
 
-```ts
-import { board } from "openboard";
-
-const b = board().as(role);                 // e.g. worker/annotator
-for (;;) {
-  const claim = await b.tasks.claim({
-    channel: "work/", label: { role }, from: ["conductor"], wait: "30m",
-  });
-  if (!claim) continue;                     // nothing ready; no tokens spent
-  const lease = keepRenewing(claim);        // every third of the lease
-  try {
-    const brief = parseBrief(claim.task.text);            // validated
-    const out = await executor.run(brief, lease.signal);  // code or agent
-    if (out.status === "needs_input") await claim.block(out.question, { kind: "needs_input" });
-    else await claim.complete(summarize(out));
-  } catch (err) {
-    if (!isClaimLost(err)) await claim.fail(describe(err)).catch(() => {});
-  } finally {
-    lease.stop();
-  }
-}
+```bash
+while true; do
+  openboard --as script-writer tasks run --ready work/ --wait 9m \
+    -- socialv step script-writer
+done
 ```
 
-- `tasks.claim` with `wait` is a long-poll: the board holds the request for
-  up to 60 seconds and answers the moment a matching task is ready. The SDK
-  repeats it. An idle runner makes about one small HTTP request a minute
-  and no model calls.
-- The runner, not the agent, renews the lease and settles the task. Leases
-  last at most five minutes, far shorter than some tasks.
-- If the claim is lost (canceled, brief edited, lease expired), the runner
-  aborts the executor and does not settle.
-- This is the same contract as `openboard tasks run`, in-process, so the
-  executor can be a TypeScript function as easily as a subprocess.
+`tasks run` claims the next ready task, runs the command with `BOARD_TASK`,
+`BOARD_TASK_EPOCH` and `BOARD_TASK_TOKEN` set, renews the lease while it
+runs, stops the command's process group if the claim is lost, and settles
+the task by the exit code. `socialv worker --role <role>` is this loop with
+restart and logging; it holds no claim logic of its own.
+
+`socialv step <role>` is the only part we write. It reads the task named by
+`BOARD_TASK`, validates the brief, runs the role's executor (a TypeScript
+function, a `claude -p` session, or a judge call), validates the output and
+exits 0 or non-zero. If the step blocked the task itself, to ask a
+question, `tasks run` leaves it blocked.
+
+- The claim wait is a long-poll: the board answers the moment a matching
+  task is ready. An idle worker makes a small HTTP request about once a
+  minute and no model calls.
+- Leases last at most five minutes, far shorter than some tasks. Renewal is
+  `tasks run`'s job, not ours and not the agent's.
+- **Routing uses `for`, not label filters.** The conductor creates each
+  task kept for a role's profile (`for: "script-writer"`). A ready claim
+  takes tasks kept for the caller first, so a worker needs no filter.
 
 ### 4.2 Agent sessions
 
@@ -210,19 +206,19 @@ login, so agent roles need no API key.
 - **Board-aware.** The session has the Openboard skill and may run the
   `openboard` CLI under its role's profile. It replies in its task's thread
   as it works, and it can ask questions (section 4.3). It does not claim,
-  renew or settle: the runner does that.
+  renew or settle: `tasks run` does that.
 - **Output:** a file that validates against the role's schema, plus a short
-  summary. The runner validates and completes the task. On a validation
-  failure the runner resumes the session once with the errors, then blocks
+  summary. The step validates it and exits 0, which completes the task. On a
+  validation failure the step resumes the session once with the errors, then blocks
   the task for the owner.
 - **Board text is data.** What an agent reads from a thread was written by
   another agent or the owner. The role prompt says whose requests to act
   on: the conductor's brief, answers to its own questions, and the owner.
-- **Sessions are kept.** The runner records the session ID that `claude -p`
+- **Sessions are kept.** The step records the session ID that `claude -p`
   reports, as a label on the task. A task that is blocked and later
   reclaimed resumes that session (`--resume`) instead of starting again.
 - **Subscription limits are shared** with the owner's interactive use, so
-  the runner caps concurrent agent sessions (two at first) and records the
+  `socialv up` caps concurrent agent sessions (two at first) and records the
   usage each session reports.
 
 The runtime is an interface, `AgentRuntime`, with `claude -p` as the first
@@ -237,7 +233,7 @@ asks the creative director.
 
 1. **Ask.** In its task's thread the script writer runs
    `openboard reply <task> "@local/creative-director Does the voice allow slang? …"`.
-2. **Wake.** The creative director's runner holds a long-poll on
+2. **Wake.** A small mention loop for the creative director holds a long-poll on
    `events({ mentionsMe: true })`. It starts a session with the thread, the
    production brief and the director's decision log, and no other history.
 3. **Answer.** The director replies in the thread, mentioning the asker,
@@ -246,11 +242,11 @@ asks the creative director.
    `openboard wait --thread <task> --mentions-me --timeout 4m`. Agents
    answer in seconds, so this normally returns with the answer and the
    session carries on with its context intact. No tokens are spent while
-   it blocks, and the runner keeps the lease alive.
+   it blocks, and `tasks run` keeps the lease alive.
 5. **If nobody answers in time**, for example because the question went to
    the owner, the agent blocks its own task (`tasks block … --kind
    needs_input`) and exits. The conductor sees a later reply that mentions
-   the asker, unblocks the task, and the runner resumes the saved session
+   the asker, unblocks the task, and the next step resumes the saved session
    with the answer.
 
 Rules that keep this cheap and bounded:
@@ -260,7 +256,7 @@ Rules that keep this cheap and bounded:
   mentions. It keeps one session per run, resumed for each question, so its
   rulings stay consistent; the decision log is the durable record if the
   session grows too long and is restarted.
-- **Question budget.** A task may ask three questions. The runner counts
+- **Question budget.** A task may ask three questions. The step counts
   the task's outgoing mentions and ends the session beyond that, blocking
   the task for the owner.
 - **No chains.** An advisory role may ask the owner but not another agent,
@@ -335,16 +331,33 @@ generator with server-side filters, and never scans.
 Because agents use the CLI themselves, each session's transcript shows
 where the agent-facing surface helps or trips. Per task we record tokens,
 the number of board commands, failed board commands and their error codes,
-and questions asked. The comparison point is `openboard tasks run` wrapping
-`claude -p` directly, with no runner of ours, tried on one role in M4 to
-see how much of the runner Openboard already provides.
+and questions asked.
+
+### 4.7 Board features we lean on
+
+Beyond tasks, leases and mentions, the design uses these on purpose, so
+that less of the coordination is our code:
+
+| Feature | Use here |
+|---|---|
+| `tasks run` | The runner for every worker (section 4.1). |
+| `for` on a task | Routing to a role. |
+| `needs` rewiring | On `revise`, tasks downstream of a gate are re-pointed at the new gate instead of being canceled and recreated. |
+| `reopen` | A failed task is retried in place, keeping its thread. |
+| Brief edit by the creator | The board ends the claim and requeues the task. This is how the owner redirects work in flight: the conductor appends their note to the brief. A completed task is final, so reworking finished output is a new task. |
+| Conditional labels (`if`, `if unset`) | Compare-and-set for small shared state: the session ID on a task, the question counter, `selected=<take>` on a shot. No store of our own for these. |
+| Intake channel and `--from` | The owner posts an idea in `intake`; the conductor promotes it to a run, keeping its origin. |
+| Trust summary on a claim | The gateway refuses a spend task whose brief was edited after creation. |
+| One board per project | `--board <project>` isolates projects without a channel prefix; the board appears on its first post. |
+| Idempotency keys | Restart safety for everything the conductor posts. |
+| `tail` | A live operations view in a terminal, for free. |
 
 ## 5. Board conventions
 
 ### Task briefs
 
 A brief is the task's root message: a one-line human summary, then a fenced
-JSON block the runner parses.
+JSON block that `socialv step` parses.
 
 ```json
 {
@@ -359,9 +372,9 @@ JSON block the runner parses.
 }
 ```
 
-Labels on the root: `run`, `stage`, `role`, and `shot` where it applies.
-Workers filter on `role`; the conductor and the producer filter on `run`
-and `stage`. The board's own `board.task` label carries the state.
+Labels on the root: `run`, `stage`, and `shot` where it applies, for the
+conductor and the producer to filter on. The task is kept `for` its role.
+The board's own `board.task` label carries the state.
 
 ### Results
 
@@ -595,7 +608,7 @@ to the run folder.
 src/
 ├── board/        typed wrapper over the Openboard SDK: briefs, labels, gate protocol
 ├── conductor/    pipeline definition, stage expansion, gates, failure policy
-├── runner/       claim loop, mention loop, lease keeper, executor and runtime interfaces
+├── step/         the `socialv step` command: brief parsing, executor and runtime interfaces, mention loop
 ├── workers/
 │   ├── tools/    probe, scenes, blueprint, assemble, package
 │   ├── agents/   one folder per role: system prompt, schema, runtime, model
@@ -630,34 +643,40 @@ until it is.
   submits); crash between consume and submit; budget cap reached.
 - **Conductor:** a fake pipeline of echo workers on a real board: stage
   expansion, restart mid-run without duplicates, revise and reject paths.
-- **Runner:** claim lost during work aborts the executor and does not
-  settle; lease renewal across a board restart.
+- **Step:** exit codes map to the right task state under `tasks run`; a
+  step that blocks its own task leaves it blocked; a step killed on claim
+  loss leaves no partial output.
 - **End to end, no spend:** the M0 exit test, run in CI with the `openboard`
   binary.
 
 ## 11. Dogfooding Openboard
 
-A friction log lives at `docs/openboard-friction.md`, one entry per
-incident: what we tried, what happened, what we did instead, and a proposed
-change. From reading the code, these are the places we expect to feel it.
+The friction log is [openboard-friction.md](openboard-friction.md). It
+holds the friction we expect from reading the code, and then one entry per
+incident as we build: what we tried, what happened, what we did instead,
+and a proposed change.
 
-| Expected friction | Our workaround | What it suggests upstream |
-|---|---|---|
-| No attachments; 10,000-character messages; no remote images in markdown | Files on disk, paths and digests in messages, a separate review server | Attachments, or at least linked media previews |
-| A person cannot act on a task in the web page (no approve, unblock or claim control) | Typed replies parsed by the conductor | Task actions for people; approval tasks |
-| No signed or action-bound approvals yet | Digest-bound envelopes checked in our gateway | Confirms the planned approval protocol; our envelope is a test case for it |
-| A local board cannot tell people from agents | Trust the bare `local` handle as the owner, by convention | A loopback mode with identities, so trust does not need network mode and a certificate warning |
-| Only a task's creator can unblock it, so an answered question needs the conductor to notice and unblock | The conductor watches for replies that mention the asker | Let a holder block "until a reply from X", or let the asker be unblocked by the answer |
-| Claude Code refuses commands that expand `$BOARD_TASK` | Write the task ID into the prompt | Already known upstream; note how often agents still trip on it |
-| A mention on a local board needs the `local/` prefix | Role prompts give the full handle | Note whether agents get it wrong |
-| Leases last five minutes at most; renders last longer | Renew in the runner | Probably fine; note whether renewal load matters |
-| The SDK lacks the event stream, grants and `explain` | Long-poll; grants set by CLI in a setup script | SSE in the SDK; grant calls in the SDK |
-| The SDK is not published | `file:` dependency | Publish to npm |
-| Channel patterns are prefixes only | Channel layout puts kind before run | Note whether per-run narrowing by derived token is enough |
-| Ready claims need `from` on a network board | Workers pass `from: ["conductor"]` | Document the pattern for a service that creates work for others |
-| Batches hold 15 tasks | `createTasksInChunks` | Note if a long video hits it |
-| No watchers or schedules | The conductor is our watcher | Use cases for the parity milestone |
-| Browser live updates pause in background tabs | Mention the producer; consider a desktop notification from the conductor | HTTP/2; notifications |
+### Do not build what Openboard will ship
+
+Where the board lacks something that is on its roadmap, we write the
+smallest stand-in that lets a run finish, behind one module, and delete it
+when the feature lands. We do not build a general version of it.
+
+| Coming in Openboard | Our stand-in, and its limit |
+|---|---|
+| Attachments | Paths and digests in messages, and a static file server over the run folder with one generated HTML page per gate. No upload, no media service, no application. |
+| Signed, action-bound approvals and approval tasks | A typed reply from the owner, checked against a digest. One approver, no policy engine, no signatures. The envelope fields follow Openboard's planned approval envelope so that the swap is mechanical. |
+| Structured data and schemas | JSON in a fenced block, validated on our side with zod. No schema registry. |
+| Watchers | The conductor's plain event loop and one mention loop per advisory role. No rule engine. |
+| Schedules | None. Gates do not remind; envelopes expire by a timestamp checked on use. |
+| Budgets, circuit breakers, hop tracking | A question counter in a label and a rule in the role prompt. Spending caps stay ours, in the gateway, because they concern money outside the board. |
+| Verified identities, passkeys | A configured owner handle. Nothing else until network mode. |
+| Bridges and notifications | None. The owner watches the board. |
+| Event stream, grants and `explain` in the SDK | Long-poll, and the CLI in a setup script. No transport of our own. |
+
+What stays ours regardless, because it is about video production and not
+coordination: the pipeline definition, the gateway's ledger and price
+table, the judges, the file layout and the ffmpeg work.
 
 What we expect to work well, and want to confirm: leased tasks with
 dependencies as a pipeline substrate; `blocked` as the human-in-the-loop
@@ -669,11 +688,11 @@ and who decided.
 
 | Milestone | Work |
 |---|---|
-| **M0** | Repository scaffold. A local board. `board/`, `runner/` with the `claude -p` runtime, and a conductor with a three-stage fake pipeline and one gate. Two toy agent roles where one asks the other a question. Review server with a placeholder page. Exit: the gate round-trip from the browser; the question answered in the thread; an hour idle with zero model calls. |
+| **M0** | Repository scaffold. A local board. `board/`, `socialv step` under `openboard tasks run` with the `claude -p` runtime, and a conductor with a three-stage fake pipeline and one gate. Two toy agent roles where one asks the other a question. Review server with a placeholder page. Exit: the gate round-trip from the browser; the question answered in the thread; an hour idle with zero model calls. |
 | **M1** | Tool workers for probe, scenes and blueprint. Gateway skeleton with ledger and budget, used first for transcription. Annotator and creative-director roles. Review page for the blueprint. Transcriber comparison. |
 | **M2** | Script-writer and prompt-writer roles. Envelopes, spend gates, full gateway verification and its test suite. fal adapter from the live schema; price table. One test segment rendered by reference-to-video and by image-to-video. The Gemini video judge, scoring both. Test review page with scorecards. |
 | **M3** | Per-shot fan-out, judging every take, take review with retries, voiceover, assembly, final gate, packaging. Judge calibration report. |
-| **M4** | Network mode with grants and a real owner identity. A worker on a second machine. `tasks run` comparison. Friction log review and upstream issues. |
+| **M4** | Network mode with grants and a real owner identity. A worker on a second machine. Friction log review and upstream issues. |
 
 ## 13. Decisions to confirm
 
@@ -687,3 +706,5 @@ and who decided.
 5. Every re-render needs a new approval in the first version (PRD open
    question 4).
 6. Speech-to-text through fal rather than a new provider (section 8).
+7. `openboard tasks run` as the runner for every worker (section 4.1).
+8. Thin stand-ins only for what Openboard's roadmap covers (section 11).
