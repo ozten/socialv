@@ -179,6 +179,10 @@ function signalGroup(child: ChildProcess, signal: NodeJS.Signals): void {
 
 export interface UpOptions {
   run: string;
+  /** Passed to the conductor: the pipeline's name. Default: the conductor's default, or what run.json recorded. */
+  pipeline?: string;
+  /** Passed to the conductor: the reference video, for the analysis pipeline. */
+  source?: string;
   signal?: AbortSignal;
   /** The socialv launcher to run children with. Defaults to this checkout's bin/socialv. */
   bin?: string;
@@ -278,7 +282,7 @@ export async function runUp(config: Config, opts: UpOptions): Promise<number> {
       const command = role.kind === "advisory" ? "mentions" : "worker";
       sup.start({ name: role.name, command: bin, args: [command, "--role", role.name], env, restart: true });
     }
-    const conductor = sup.start({ name: "conductor", command: bin, args: ["conductor", "--run", opts.run], env, restart: false });
+    const conductor = sup.start({ name: "conductor", command: bin, args: conductorArgs(opts), env, restart: false });
 
     // The web page keeps its route in the query string. Openboard does not document this yet (openboard#6).
     const gatesLink = new URL(config.boardUrl);
@@ -308,6 +312,14 @@ export async function runUp(config: Config, opts: UpOptions): Promise<number> {
   } finally {
     await sup.stopAll();
   }
+}
+
+/** The conductor's command line: the run, and the pipeline options given to `up`. */
+export function conductorArgs(opts: Pick<UpOptions, "run" | "pipeline" | "source">): string[] {
+  const args = ["conductor", "--run", opts.run];
+  if (opts.pipeline !== undefined) args.push("--pipeline", opts.pipeline);
+  if (opts.source !== undefined) args.push("--source", opts.source);
+  return args;
 }
 
 async function waitForBoard(url: string, timeoutMs: number, stop: AbortSignal): Promise<boolean> {

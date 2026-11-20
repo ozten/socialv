@@ -3,6 +3,7 @@
 // Code under the owner's subscription; `fake` is deterministic, for tests.
 
 import type { Config } from "../config.ts";
+import { PROVIDER_KEY_VARS } from "../gateway/keys.ts";
 import type { AgentContext } from "../workers/types.ts";
 
 export interface Usage {
@@ -70,6 +71,10 @@ export function sessionEnv(config: Config, role: string, base: NodeJS.ProcessEnv
   }
   // Agent roles run on the owner's subscription login, never an API key.
   delete env.ANTHROPIC_API_KEY;
+  // Only the spend gateway holds provider keys (requirement G1).
+  for (const name of PROVIDER_KEY_VARS) {
+    delete env[name];
+  }
   delete env.BOARD_PROFILE;
   delete env.BOARD_TOKEN;
   env.BOARD_URL = config.boardUrl;

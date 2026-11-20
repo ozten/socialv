@@ -1,12 +1,20 @@
 import { createHash } from "node:crypto";
-import { BoardError, createTasksInChunks, type Board, type Message, type TaskInBatch } from "openboardlol";
+import { BoardError, MAX_TASKS_PER_BATCH, type Board, type Message, type TaskInBatch } from "openboardlol";
 import { formatGateDecision, parseGateReply, REPLY_FORMS, type GateDecision } from "../board/gate.ts";
-import { gatesChannel, OPS, statusChannel, workChannel } from "../channels.ts";
+import { gatesChannel, OPS, spendChannel, statusChannel, workChannel } from "../channels.ts";
 import { runDir, type Config } from "../config.ts";
 import { writeGatePage } from "../review/page.ts";
 import type { GateItem } from "../review/types.ts";
 import { formatBrief, parseBrief } from "../schemas/brief.ts";
-import { checkPipeline, type GateNode, type Pipeline, type PipelineNode, type RunContext, type StageNode } from "./pipeline.ts";
+import {
+  checkPipeline,
+  type FanItem,
+  type GateNode,
+  type Pipeline,
+  type PipelineNode,
+  type RunContext,
+  type StageNode,
+} from "./pipeline.ts";
 
 /** How many times a failed stage task is reopened before the owner is told. */
 export const MAX_REOPENS = 2;
@@ -14,6 +22,10 @@ export const MAX_REOPENS = 2;
 const GATE_LEASE_SECS = 5;
 /** How many reconcile passes in a row may change something before we wait for an event. */
 const MAX_PASSES = 20;
+/** The board's limit on a task's `needs` (MAX_NEEDS_PER_TASK in openboard-api; the SDK does not export it). */
+const MAX_NEEDS = 32;
+/** A gate packet's length, under the board's 10,000-character limit on a message. */
+const PACKET_MAX = 9500;
 
 /** Errors that mean "the board moved under us": look again. */
 const RACES = new Set([
@@ -52,6 +64,8 @@ interface Rec {
   msg: Message;
   node: PipelineNode;
   rev: number;
+  /** Set on the tasks of a fanned-out stage. */
+  shot?: string;
 }
 
 class Snapshot {
@@ -70,8 +84,20 @@ class Snapshot {
     }
   }
 
-  latest(name: string): Rec | undefined {
-    return this.byNode.get(name)?.at(-1);
+  /** The highest revision of a node that has any task. */
+  latestRev(name: string): number | undefined {
+    return this.byNode.get(name)?.at(-1)?.rev;
+  }
+
+  /** Every task of a node at its highest revision: one, or one per shot. */
+  latestRecs(name: string): Rec[] {
+    const rev = this.latestRev(name);
+    return this.byNode.get(name)?.filter((r) => r.rev === rev) ?? [];
+  }
+
+  /** The highest revision of one task of a node: the node's own, or one shot's. */
+  latest(name: string, shot?: string): Rec | undefined {
+    return this.byNode.get(name)?.findLast((r) => r.shot === shot);
   }
 
   has(name: string, rev: number): boolean {
@@ -189,8 +215,7 @@ export class RunDriver {
         if (outcome) return outcome;
         if (!following && this.startCursor) {
           following = true;
-          void follow(workChannel(this.run), this.startCursor);
-          void follow(gatesChannel(this.run), this.startCursor);
+          for (const channel of this.channels()) void follow(channel, this.startCursor);
         }
       }
       return "aborted";
@@ -214,9 +239,18 @@ export class RunDriver {
 
   // ----- Snapshot ------------------------------------------------------------
 
+  /** Every channel this run's tasks live in. */
+  private channels(): string[] {
+    return [workChannel(this.run), spendChannel(this.run), gatesChannel(this.run)];
+  }
+
+  private channelOf(node: StageNode): string {
+    return node.channel === "spend" ? spendChannel(this.run) : workChannel(this.run);
+  }
+
   private async snapshot(): Promise<Snapshot> {
     const recs: Rec[] = [];
-    for (const channel of [workChannel(this.run), gatesChannel(this.run)]) {
+    for (const channel of this.channels()) {
       let after: string | undefined;
       do {
         const page = await this.b.tasks.list({ channel, state: "all", limit: 100, after });
@@ -227,7 +261,7 @@ export class RunDriver {
           const node = labels.stage ? this.nodes.get(labels.stage) : undefined;
           const rev = Number(labels.rev);
           if (labels.run === this.run && node && Number.isSafeInteger(rev) && root.task) {
-            recs.push({ msg: root, node, rev });
+            recs.push({ msg: root, node, rev, ...(labels.shot ? { shot: labels.shot } : {}) });
           }
         }
         after = page.next_cursor;
@@ -241,6 +275,7 @@ export class RunDriver {
   /** One pass: read the board, make one round of changes. */
   private async reconcile(): Promise<Outcome | "acted" | "idle"> {
     const snap = await this.snapshot();
+    this.itemCache.clear();
     let acted = false;
 
     // A gate canceled other than for a revision ends the run.
@@ -258,11 +293,11 @@ export class RunDriver {
 
     for (const rec of snap.recs) {
       const s = state(rec);
-      const latest = snap.latest(rec.node.name)!;
-      if (rec !== latest) {
+      const latestRev = snap.latestRev(rec.node.name)!;
+      if (rec.rev < latestRev) {
         // An older revision still open: the newer one replaces it.
         if (UNFINISHED.has(s)) {
-          await this.b.tasks.cancel(rec.msg.id, `superseded by revision ${latest.rev}`);
+          await this.b.tasks.cancel(rec.msg.id, `superseded by revision ${latestRev}`);
           acted = true;
         }
         continue;
@@ -280,10 +315,13 @@ export class RunDriver {
 
     if (await this.expand(snap)) return "acted";
 
-    const done = this.pipeline.nodes.every((n) => {
-      const rec = snap.latest(n.name);
-      return rec && state(rec) === "completed";
-    });
+    let done = true;
+    for (const node of this.pipeline.nodes) {
+      const recs = snap.latestRecs(node.name);
+      done = recs.length > 0 && recs.every((r) => state(r) === "completed");
+      if (done && node.kind === "stage" && node.fanOut) done = recs.length >= (await this.items(node)).length;
+      if (!done) break;
+    }
     if (done) {
       await this.status("completed", `Run ${this.run} completed.`);
       return "completed";
@@ -293,9 +331,40 @@ export class RunDriver {
 
   // ----- Creating tasks (staged expansion and rework) ------------------------
 
+  /** The items of a fanned-out stage, read once per pass. */
+  private readonly itemCache = new Map<string, Promise<FanItem[]>>();
+
+  private items(node: StageNode): Promise<FanItem[]> {
+    let items = this.itemCache.get(node.name);
+    if (!items) {
+      items = node.fanOut!.items(this.ctx).then((list) => {
+        const shots = new Set(list.map((i) => i.shot));
+        if (list.length === 0 || shots.size !== list.length) {
+          throw new Error(`stage ${node.name}: expected one or more items with distinct shots, got ${list.length}`);
+        }
+        return list;
+      });
+      this.itemCache.set(node.name, items);
+    }
+    return items;
+  }
+
   /** Creates what should exist and does not. True if it created anything. */
   private async expand(snap: Snapshot): Promise<boolean> {
-    const plan = new Map<string, { node: PipelineNode; rev: number; notes: string | null }>();
+    // A fanned-out stage left part-created (by a crash between chunks) is finished first.
+    for (const node of this.pipeline.nodes) {
+      if (node.kind !== "stage" || !node.fanOut) continue;
+      const recs = snap.latestRecs(node.name);
+      if (recs.length === 0) continue;
+      const have = new Set(recs.map((r) => r.shot));
+      const items = await this.items(node);
+      if (items.every((i) => have.has(i.shot))) continue;
+      const first = recs[0]!;
+      await this.createFanOut(node, first.rev, parseBrief(first.msg.text).notes, first.msg.task?.needs ?? [], items, have);
+      return true;
+    }
+
+    const plan = new Map<string, { rev: number; notes: string | null }>();
 
     // Rework: a gate canceled with `revise` gets its stages and itself again, one revision up.
     for (const node of this.pipeline.nodes) {
@@ -305,73 +374,139 @@ export class RunDriver {
       if (!gate || decision?.kind !== "revise") continue;
       const rev = gate.rev + 1;
       for (const name of [...node.rework, node.name]) {
-        if (!snap.has(name, rev)) {
-          plan.set(name, { node: this.nodes.get(name)!, rev, notes: decision.notes });
-        }
+        if (!snap.has(name, rev)) plan.set(name, { rev, notes: decision.notes });
       }
     }
-
-    // Staged expansion: a node is created once what it needs exists; after a gate, once it is approved.
+    // Staged expansion: every node with no task yet, created below once what it needs allows.
     for (const node of this.pipeline.nodes) {
-      if (snap.latest(node.name) || plan.has(node.name)) continue;
-      const ready = node.needs.every((need) => {
-        const needed = this.nodes.get(need)!;
-        if (plan.has(need)) return needed.kind === "stage";
-        const rec = snap.latest(need);
-        return rec !== undefined && (needed.kind === "stage" || state(rec) === "completed");
-      });
-      if (ready) plan.set(node.name, { node, rev: 1, notes: null });
+      if (snap.latestRev(node.name) === undefined && !plan.has(node.name)) plan.set(node.name, { rev: 1, notes: null });
     }
-    if (plan.size === 0) return false;
 
-    const entries = [...plan.values()];
-    const stages = entries.filter((e): e is typeof e & { node: StageNode } => e.node.kind === "stage");
-    const gates = entries.filter((e): e is typeof e & { node: GateNode } => e.node.kind === "gate");
-    const created = new Map<string, string>();
+    // In pipeline order, so a node can need one created earlier in this pass.
+    const created = new Map<string, string[]>();
+    for (const node of this.pipeline.nodes) {
+      const entry = plan.get(node.name);
+      if (!entry) continue;
+      const needs = this.needIds(snap, node, plan, created);
+      if (!needs) continue;
+      const { rev, notes } = entry;
+      if (node.kind === "gate") {
+        created.set(node.name, [await this.createGate(node, rev, notes, needs)]);
+      } else if (node.fanOut) {
+        created.set(node.name, await this.createFanOut(node, rev, notes, needs, await this.items(node), new Set()));
+      } else {
+        const { task } = await this.b.tasks.create(this.channelOf(node), {
+          text: formatBrief(node.summary, this.brief(node, notes, node)),
+          labels: { run: this.run, stage: node.name, rev: String(rev), kind: "stage" },
+          needs,
+          for: node.role,
+          id: shortKey(`${this.run}-${node.name}-r${rev}`),
+        });
+        created.set(node.name, [task.id]);
+        this.log(`created ${node.name} r${rev}`);
+      }
+    }
+    return created.size > 0;
+  }
 
-    if (stages.length > 0) {
-      const batch: TaskInBatch[] = stages.map(({ node, rev, notes }) => ({
-        key: node.name,
-        text: formatBrief(node.summary, {
-          v: 1,
-          run: this.run,
-          stage: node.name,
-          role: node.role,
-          inputs: node.inputs,
-          output: node.output,
-          schema: node.schema,
-          params: node.params,
-          notes,
-        }),
-        labels: { run: this.run, stage: node.name, rev: String(rev), kind: "stage" },
-        needs: node.needs.map((need) => (plan.has(need) ? { key: need } : snap.latest(need)!.msg.id)),
+  /**
+   * The task IDs `node` should need, or null when it cannot be created yet:
+   * something it needs has no task (or is waiting to be created this pass),
+   * a gate it needs is not approved, or, for a fanned-out stage, something
+   * it needs has not completed. A fanned-out need contributes its tasks that
+   * have not completed, so a stage after a large fan-out waits until few
+   * enough are left to fit the board's limit on needs.
+   */
+  private needIds(
+    snap: Snapshot,
+    node: PipelineNode,
+    plan: Map<string, unknown>,
+    created: Map<string, string[]>,
+  ): string[] | null {
+    const mustBeDone = (needed: PipelineNode) => needed.kind === "gate" || (node.kind === "stage" && node.fanOut !== undefined);
+    const ids: string[] = [];
+    for (const need of node.needs) {
+      const needed = this.nodes.get(need)!;
+      const fresh = created.get(need);
+      if (fresh) {
+        if (mustBeDone(needed)) return null;
+        ids.push(...fresh);
+        continue;
+      }
+      if (plan.has(need)) return null;
+      const recs = snap.latestRecs(need);
+      if (recs.length === 0) return null;
+      if (mustBeDone(needed) && !recs.every((r) => state(r) === "completed")) return null;
+      const open = needed.kind === "stage" && needed.fanOut ? recs.filter((r) => state(r) !== "completed") : recs;
+      ids.push(...open.map((r) => r.msg.id));
+    }
+    return ids.length <= MAX_NEEDS ? ids : null;
+  }
+
+  private brief(node: StageNode, notes: string | null, item: { inputs: string[]; output: string; shot?: string }) {
+    return {
+      v: 1 as const,
+      run: this.run,
+      stage: node.name,
+      role: node.role,
+      ...(item.shot ? { shot: item.shot } : {}),
+      inputs: item.inputs,
+      output: item.output,
+      schema: node.schema,
+      params: node.params,
+      notes,
+    };
+  }
+
+  /**
+   * Creates the tasks of a fanned-out stage that do not exist yet, in chunks
+   * the size of the board's batch limit. A chunk is atomic, and its key names
+   * the revision and its first and last shot, so a chunk is either all there
+   * or sent again under the same key. Returns the IDs created.
+   */
+  private async createFanOut(
+    node: StageNode,
+    rev: number,
+    notes: string | null,
+    needs: string[],
+    items: FanItem[],
+    have: Set<string | undefined>,
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    for (let i = 0; i < items.length; i += MAX_TASKS_PER_BATCH) {
+      const chunk = items.slice(i, i + MAX_TASKS_PER_BATCH);
+      if (chunk.some((item) => have.has(item.shot))) continue;
+      const batch: TaskInBatch[] = chunk.map((item) => ({
+        text: formatBrief(item.summary, this.brief(node, notes, item)),
+        labels: { run: this.run, stage: node.name, rev: String(rev), kind: "stage", shot: item.shot },
+        needs,
         for: node.role,
       }));
-      const key = shortKey(`${this.run}-${stages.map((e) => `${e.node.name}-r${e.rev}`).join("-")}`);
-      const tasks = await createTasksInChunks(this.b, workChannel(this.run), batch, { id: key });
-      stages.forEach((e, i) => created.set(e.node.name, tasks[i]!.id));
-      this.log(`created ${stages.map((e) => `${e.node.name} r${e.rev}`).join(", ")}`);
+      const key = shortKey(`${this.run}-${node.name}-r${rev}-${chunk[0]!.shot}-${chunk.at(-1)!.shot}`);
+      const tasks = await this.b.tasks.createMany(this.channelOf(node), batch, { id: key });
+      ids.push(...tasks.map((t) => t.id));
+      this.log(`created ${node.name} r${rev} for ${chunk.map((c) => c.shot).join(", ")}`);
     }
+    return ids;
+  }
 
-    // A gate lives in another channel, so it cannot join the batch above.
-    for (const { node, rev, notes } of gates) {
-      const needs = node.needs.map((need) => created.get(need) ?? snap.latest(need)!.msg.id);
-      const text = [
-        `Gate: ${node.title} (revision ${rev})`,
-        "",
-        node.summary,
-        ...(notes ? ["", `Rework notes: ${notes}`] : []),
-      ].join("\n");
-      await this.b.tasks.create(gatesChannel(this.run), {
-        text,
-        labels: { run: this.run, stage: node.name, rev: String(rev), kind: "gate" },
-        needs,
-        for: profileOf({ handle: this.me }) ?? this.me,
-        id: `${this.run}-${node.name}-r${rev}`,
-      });
-      this.log(`created gate ${node.name} r${rev}`);
-    }
-    return true;
+  /** A gate lives in the gates channel, kept for the conductor itself. */
+  private async createGate(node: GateNode, rev: number, notes: string | null, needs: string[]): Promise<string> {
+    const text = [
+      `Gate: ${node.title} (revision ${rev})`,
+      "",
+      node.summary,
+      ...(notes ? ["", `Rework notes: ${notes}`] : []),
+    ].join("\n");
+    const { task } = await this.b.tasks.create(gatesChannel(this.run), {
+      text,
+      labels: { run: this.run, stage: node.name, rev: String(rev), kind: "gate" },
+      needs,
+      for: profileOf({ handle: this.me }) ?? this.me,
+      id: `${this.run}-${node.name}-r${rev}`,
+    });
+    this.log(`created gate ${node.name} r${rev}`);
+    return task.id;
   }
 
   /** Points an open task's needs at the latest revision of what it needs. */
@@ -379,11 +514,11 @@ export class RunDriver {
     const needs = rec.msg.task?.needs ?? [];
     const next = needs.map((id) => {
       const needed = snap.byId.get(id);
-      return needed ? snap.latest(needed.node.name)!.msg.id : id;
+      return needed ? (snap.latest(needed.node.name, needed.shot)?.msg.id ?? id) : id;
     });
     if (next.every((id, i) => id === needs[i])) return false;
     await this.b.tasks.needs(rec.msg.id, next);
-    this.log(`re-pointed ${rec.node.name} r${rec.rev} at the latest revisions`);
+    this.log(`re-pointed ${this.label(rec)} at the latest revisions`);
     return true;
   }
 
@@ -409,6 +544,8 @@ export class RunDriver {
       await this.postPacket(rec, node, keyBase);
       return "acted";
     }
+    // A process that died between the packet and the status line left the status unsaid.
+    await this.openedStatus(rec, node);
 
     let items: GateItem[] | undefined;
     for (const reply of replies.slice(packetAt + 1)) {
@@ -450,28 +587,50 @@ export class RunDriver {
       items,
       threadId: rec.msg.id,
     });
-    const link = `${this.config.reviewUrl.replace(/\/+$/, "")}/runs/${this.run}/${relative.split("\\").join("/")}`;
-    const lines = items.map((item) => {
-      const body = item.text !== undefined ? `: ${clip(item.text, 800)}` : "";
+    const link = this.pageLink(relative);
+    const packet = (lines: string[]) =>
+      [
+        `@${this.config.owner} **${node.title}** (revision ${rec.rev})`,
+        "",
+        node.summary,
+        "",
+        ...lines,
+        "",
+        `Review page: ${link}`,
+        "",
+        `Reply in this thread with one of:`,
+        "",
+        REPLY_FORMS,
+      ].join("\n");
+    const line = (item: GateItem, max: number) => {
+      const body = item.text !== undefined && max > 0 ? `: ${clip(item.text, max)}` : "";
       const file = item.file ? ` (\`${item.file}\`)` : "";
       return `${item.n}. **${item.label}**${file}${body}`;
-    });
-    const text = [
-      `@${this.config.owner} **${node.title}** (revision ${rec.rev})`,
-      "",
-      node.summary,
-      "",
-      ...lines,
-      "",
-      `Review page: ${link}`,
-      "",
-      `Reply in this thread with one of:`,
-      "",
-      REPLY_FORMS,
-    ].join("\n");
+    };
+    // The board caps a message at 10,000 characters. Many items share the
+    // room; if even their names do not fit, the packet lists the first ones and
+    // sends the owner to the review page, which always shows everything.
+    let text = packet(items.map((item) => line(item, 800)));
+    for (const max of [300, 120, 0]) {
+      if (text.length <= PACKET_MAX) break;
+      text = packet(items.map((item) => line(item, max)));
+    }
+    for (let shown = items.length - 1; text.length > PACKET_MAX && shown > 0; shown--) {
+      const rest = items.length - shown;
+      text = packet([...items.slice(0, shown).map((item) => line(item, 0)), `…and ${rest} more item${rest === 1 ? "" : "s"}: see the review page.`]);
+    }
     await this.replyOnce(rec.msg.id, `${keyBase}-packet`, text);
-    await this.status(`${node.name}-r${rec.rev}-opened`, `Gate ${node.name} (revision ${rec.rev}) is open: ${node.title}. ${link}`);
+    await this.openedStatus(rec, node);
     await this.blockGate(rec);
+  }
+
+  private pageLink(relative: string): string {
+    return `${this.config.reviewUrl.replace(/\/+$/, "")}/runs/${this.run}/${relative.split("\\").join("/")}`;
+  }
+
+  private openedStatus(rec: Rec, node: GateNode): Promise<void> {
+    const link = this.pageLink(`review/${this.gateId(node, rec.rev)}.html`);
+    return this.status(`${node.name}-r${rec.rev}-opened`, `Gate ${node.name} (revision ${rec.rev}) is open: ${node.title}. ${link}`);
   }
 
   private async blockGate(rec: Rec): Promise<void> {
@@ -540,8 +699,8 @@ export class RunDriver {
       if (attempts >= MAX_REOPENS) {
         await this.postOnce(
           OPS,
-          `${this.run}-${rec.node.name}-r${rec.rev}-failed`,
-          `@${this.config.owner} Stage ${rec.node.name} (revision ${rec.rev}) of run ${this.run} failed ${attempts + 1} times and is left failed. Last reason: ${clip(task.reason ?? "none given", 2000)} (task ${rec.msg.id})`,
+          `${this.run}-${rec.node.name}-r${rec.rev}${rec.shot ? `-${rec.shot}` : ""}-failed`,
+          `@${this.config.owner} Stage ${rec.node.name}${rec.shot ? ` (${rec.shot})` : ""} (revision ${rec.rev}) of run ${this.run} failed ${attempts + 1} times and is left failed. Last reason: ${clip(task.reason ?? "none given", 2000)} (task ${rec.msg.id})`,
         );
         return false;
       }
@@ -551,7 +710,7 @@ export class RunDriver {
       });
     }
     await this.b.tasks.reopen(rec.msg.id);
-    this.log(`reopened ${rec.node.name} r${rec.rev} (attempt ${attempts + 2})`);
+    this.log(`reopened ${this.label(rec)} (attempt ${attempts + 2})`);
     return true;
   }
 
@@ -575,8 +734,12 @@ export class RunDriver {
     );
     if (!answer) return false;
     await this.b.tasks.unblock(rec.msg.id);
-    this.log(`unblocked ${rec.node.name} r${rec.rev}: ${answer.by.handle} answered`);
+    this.log(`unblocked ${this.label(rec)}: ${answer.by.handle} answered`);
     return true;
+  }
+
+  private label(rec: Rec): string {
+    return `${rec.node.name}${rec.shot ? ` ${rec.shot}` : ""} r${rec.rev}`;
   }
 
   // ----- Posting ---------------------------------------------------------------

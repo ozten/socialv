@@ -9,7 +9,30 @@ export interface RunContext {
   runDir: string;
 }
 
-/** A unit of work done by a role: one board task per revision. */
+/** One task of a fanned-out stage, from the data an earlier stage wrote. */
+export interface FanItem {
+  /** The shot this task is about: its `shot` label and `brief.shot`. Unique in the stage. */
+  shot: string;
+  summary: string;
+  inputs: string[];
+  output: string;
+}
+
+/**
+ * A stage that becomes one task per item. Its tasks are created once every
+ * stage it needs has completed, from what `items` reads in the run folder.
+ */
+export interface FanOut {
+  items(ctx: RunContext): Promise<FanItem[]>;
+}
+
+/** Where a stage's tasks live: `work/<run>`, or `spend/<run>` for paid calls the gateway claims. */
+export type ChannelKind = "work" | "spend";
+
+/**
+ * A unit of work done by a role: one board task per revision, or, with
+ * `fanOut`, one task per item per revision.
+ */
 export interface StageNode {
   kind: "stage";
   name: string;
@@ -22,6 +45,10 @@ export interface StageNode {
   output: string;
   schema: string;
   params: Record<string, unknown>;
+  /** Default `work`. */
+  channel?: ChannelKind;
+  /** Set for a stage that expands into one task per item. `inputs`, `output` and `summary` are then per item. */
+  fanOut?: FanOut;
 }
 
 /** An approval by the owner: a task in the gates channel kept for the conductor. */
@@ -82,6 +109,9 @@ export function checkPipeline(pipeline: Pipeline): void {
       if (!seen.has(need)) {
         throw new Error(`pipeline ${pipeline.name}: ${node.name} needs ${need}, which does not come before it`);
       }
+    }
+    if (node.kind === "stage" && node.fanOut && node.needs.some((need) => seen.get(need)?.kind !== "stage")) {
+      throw new Error(`pipeline ${pipeline.name}: the fanned-out stage ${node.name} may need only stages`);
     }
     if (node.kind === "gate") {
       for (const name of [...node.needs, ...node.rework]) {

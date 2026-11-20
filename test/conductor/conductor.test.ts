@@ -5,7 +5,6 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { OPS, statusChannel } from "../../src/channels.ts";
 import { runDir } from "../../src/config.ts";
 import { RunDriver } from "../../src/conductor/engine.ts";
-import { runConductor } from "../../src/conductor/index.ts";
 import { demoPipeline } from "../../src/conductor/pipelines/demo.ts";
 import { parseBrief } from "../../src/schemas/brief.ts";
 import { startBoard, type TestBoard } from "../helpers/board.ts";
@@ -372,7 +371,7 @@ test(
     const pipeline = { name: "demo-side", nodes: [...base.nodes.slice(0, 2), side, ...base.nodes.slice(2)] };
     const workers = startWorkers(tb, run);
     const controller = new AbortController();
-    const done = runConductor(testConfig(tb), { run, signal: controller.signal, pipeline, log: () => {} });
+    const done = new RunDriver(testConfig(tb), run, pipeline, tb.as("conductor"), { log: () => {} }).drive(controller.signal);
 
     const gate1 = await gateBlocked(tb, run, 1);
     const before = (await runTasks(tb, run)).find("side")!;

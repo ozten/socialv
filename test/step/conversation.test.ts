@@ -128,16 +128,33 @@ test("over the question budget, the task is blocked for the owner and no session
   expect(replies.at(-1)?.mentions).toContainEqual(expect.objectContaining({ handle: "local" }));
 });
 
-test("agent output that does not validate gets one retry, then fails the task", async () => {
+test("agent output that does not validate gets one retry, then the task is blocked for the owner", async () => {
   const task = await writerTask("c6");
   const { code } = await withDirector(() => claimAndStep(tb, "toy-writer", task.id, { SOCIALV_FAKE_INVALID: "1" }));
-  expect(code).toBe(1);
-  const state = await taskOf(tb, task.id);
-  expect(state.task?.state).toBe("failed");
+  expect(code).toBe(0);
+  let state = await taskOf(tb, task.id);
+  expect(state.task?.state).toBe("blocked");
+  expect(state.task?.block_kind).toBe("needs_input");
   expect(state.task?.reason).toMatch(/does not match Text@1/);
   const sessions = (await readFakeLog(dirOf("c6"))).filter((e) => e.role === "toy-writer");
   expect(sessions.map((e) => e.resumed)).toEqual([false, true]);
   expect(existsSync(path.join(dirOf("c6"), "creative/draft.json"))).toBe(false);
+  const { replies } = await tb.as("conductor").thread(task.id);
+  // On a local board the owner's bare handle, `local`, also wakes every `local/...` role, so the
+  // director may answer the hand-off too: find it by its text.
+  const handoff = replies.find((m) => m.text.includes("still does not match"))!;
+  expect(handoff.by.handle).toBe("local/toy-writer");
+  expect(handoff.mentions).toContainEqual(expect.objectContaining({ handle: "local" }));
+  expect(handoff.text).toContain("- text: Required");
+
+  // The owner answers; once unblocked, the next step resumes the session and completes.
+  await tb.as(null).reply(task.id, "@local/toy-writer keep it short");
+  await tb.as("conductor").tasks.unblock(task.id);
+  expect((await claimAndStep(tb, "toy-writer", task.id)).code).toBe(0);
+  state = await taskOf(tb, task.id);
+  expect(state.task?.state).toBe("completed");
+  const draft = JSON.parse(await readFile(path.join(dirOf("c6"), "creative/draft.json"), "utf8"));
+  expect(draft.text).toContain("keep it short");
 });
 
 test("a task canceled while the agent waits is left alone", async () => {

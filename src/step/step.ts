@@ -254,7 +254,19 @@ async function runAgent(def: AgentRole, step: StepContext): Promise<Outcome> {
     }
     checked = await checkDraft(step, draftPath);
     if (!checked.ok) {
-      throw new Error(`the agent's output does not match ${step.brief.schema}:\n${checked.errors}`);
+      // Twice wrong: hand it to the owner rather than fail it (design 4.2).
+      // Their reply in the thread resumes this session with what they said.
+      const errors = checked.errors.slice(0, 6000);
+      await me.reply(taskId, {
+        text: `@${config.owner} The output still does not match ${step.brief.schema} after one retry:\n\n${errors}\n\nReply in this thread with guidance; the task resumes with your reply.`,
+        id: `${taskId}-invalid-${step.epoch}`,
+      });
+      await me.tasks
+        .held(taskId, { epoch: step.epoch, token: step.env.BOARD_TASK_TOKEN! })
+        .block(`The output does not match ${step.brief.schema} after one retry. @${config.owner}, see the thread.`, {
+          kind: "needs_input",
+        });
+      return { kind: "blocked" };
     }
   }
   await rm(draftPath, { force: true });

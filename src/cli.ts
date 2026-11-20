@@ -12,7 +12,7 @@ Usage: socialv <command> [options]
 Commands:
   up --run <id>           Start everything for local development: a board if none
                           is running, the review server, every worker and the conductor
-  conductor --run <id>    Run the pipeline for one run (exit 0 completed, 3 rejected)
+  conductor --run <id>    Run a pipeline for one run (exit 0 completed, 3 rejected)
   step <role>             Work the task in BOARD_TASK as <role> (run by \`openboard tasks run\`)
   worker --role <role>    Claim and work tasks for a tool or agent role, forever
   mentions --role <role>  Answer mentions for an advisory role, forever
@@ -38,40 +38,59 @@ interface Command {
 /** 130 for SIGINT, 143 for SIGTERM. */
 const signalExit = (signal: AbortSignal) => (signal.reason === "SIGINT" ? 130 : 143);
 const help = { help: { type: "boolean", short: "h" } } as const satisfies Options;
+const pipelineOptions = {
+  run: { type: "string" },
+  pipeline: { type: "string" },
+  source: { type: "string" },
+} as const satisfies Options;
 
 const COMMANDS: Record<string, Command> = {
   up: {
-    usage: `Usage: socialv up --run <id>
+    usage: `Usage: socialv up --run <id> [--pipeline <name>] [--source <path>]
 
 Starts a local board at BOARD_URL if none answers there (data in
 <project>/.board; an already-running board is left alone), the review server,
 a worker for every tool and agent role, a mention loop for every advisory role,
 and the conductor for the run. Each runs as a child process with its output
 prefixed; workers that exit are restarted. Ctrl-C stops everything.
-Exits with the conductor's code.
+Exits with the conductor's code. --pipeline and --source are passed to the
+conductor; see \`socialv conductor --help\`.
 `,
-    options: { ...help, run: { type: "string" } },
+    options: { ...help, ...pipelineOptions },
     positionals: 0,
     handlesSignals: true,
     async run(config, values, _p, signal) {
       const run = required(values, "run");
       const { runUp } = await import("./up.ts");
-      return runUp(config, { run, signal });
+      return runUp(config, { run, pipeline: optional(values, "pipeline"), source: optional(values, "source"), signal });
     },
   },
   conductor: {
-    usage: `Usage: socialv conductor --run <id>
+    usage: `Usage: socialv conductor --run <id> [--pipeline <name>] [--source <path>]
 
-Runs the pipeline for one run. Exit codes: 0 completed, 3 rejected,
-130/143 stopped by SIGINT/SIGTERM.
+Runs a pipeline for one run. The first start records the pipeline and its
+parameters in <project>/runs/<id>/run.json; a restart reads them from there,
+needs neither flag, and refuses a different pipeline or source.
+
+  --pipeline <name>   demo (the default) or analysis
+  --source <path>     analysis only: the reference video, relative to the
+                      project folder. Default: \`source\` in the project's
+                      socialv.json, else source/original.mov
+
+Exit codes: 0 completed, 3 rejected, 130/143 stopped by SIGINT/SIGTERM.
 `,
-    options: { ...help, run: { type: "string" } },
+    options: { ...help, ...pipelineOptions },
     positionals: 0,
     handlesSignals: true,
     async run(config, values, _p, signal) {
       const run = required(values, "run");
       const { runConductor } = await import("./conductor/index.ts");
-      const outcome = await runConductor(config, { run, signal });
+      const outcome = await runConductor(config, {
+        run,
+        pipeline: optional(values, "pipeline"),
+        params: { source: optional(values, "source") },
+        signal,
+      });
       if (outcome === "completed") return 0;
       if (outcome === "rejected") return 3;
       return signal.aborted ? signalExit(signal) : 1;
@@ -150,6 +169,13 @@ defaults to the one in SOCIALV_REVIEW_URL; 0 picks a free one.
 };
 
 class UsageError extends Error {}
+
+function optional(values: Values, name: string): string | undefined {
+  const value = values[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value === "") throw new UsageError(`--${name} needs a value`);
+  return value;
+}
 
 function required(values: Values, name: string): string {
   const value = values[name];

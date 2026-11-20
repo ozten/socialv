@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import type { Config } from "../config.ts";
+import { GATEWAY } from "../channels.ts";
+import { withoutProviderKeys } from "../gateway/keys.ts";
 import { getRole } from "../workers/registry.ts";
 
 export interface WorkerOptions {
@@ -29,7 +31,7 @@ export async function runWorker(config: Config, role: string, opts: WorkerOption
 
   while (!signal?.aborted) {
     const started = Date.now();
-    const { code, error, task, state } = await runOnce(config, role, [...command, role], signal);
+    const { code, error, task, state } = await runOnce(config, role, def.channel ?? "work/", [...command, role], signal);
     if (signal?.aborted) {
       break;
     }
@@ -62,9 +64,13 @@ interface RunOutcome {
   state?: string;
 }
 
-function runOnce(config: Config, role: string, command: string[], signal?: AbortSignal): Promise<RunOutcome> {
+/**
+ * The environment of a worker's `tasks run` child, and so of its steps.
+ * Only the gateway keeps provider keys (requirement G1).
+ */
+export function workerEnv(config: Config, role: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...(role === GATEWAY ? base : withoutProviderKeys(base)),
     BOARD_URL: config.boardUrl,
     BOARD_NAME: config.boardName,
     SOCIALV_PROJECT_DIR: config.projectDir,
@@ -77,10 +83,14 @@ function runOnce(config: Config, role: string, command: string[], signal?: Abort
   delete env.BOARD_TASK;
   delete env.BOARD_TASK_EPOCH;
   delete env.BOARD_TASK_TOKEN;
+  return env;
+}
 
+function runOnce(config: Config, role: string, channel: string, command: string[], signal?: AbortSignal): Promise<RunOutcome> {
+  const env = workerEnv(config, role);
   return new Promise((resolve) => {
     const outcome: RunOutcome = { code: null };
-    const child = spawn("openboard", ["--as", role, "tasks", "run", "--ready", "work/", "--wait", "9m", "--", ...command], {
+    const child = spawn("openboard", ["--as", role, "tasks", "run", "--ready", channel, "--wait", "9m", "--", ...command], {
       env,
       stdio: ["ignore", "inherit", "pipe"],
     });

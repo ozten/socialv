@@ -33,6 +33,30 @@ in the gate's thread with `approve`, `approve 1,3`, `revise: <notes>` or
 `bin/socialv --help` lists the other commands (`conductor`, `worker`,
 `mentions`, `step`, `review`).
 
+## Analysing a reference video
+
+The `analysis` pipeline takes a reference video apart shot by shot:
+
+```sh
+cp ~/Movies/reference.mov projects/demo/source/original.mov
+bin/socialv up --run ref-1 --pipeline analysis   # or --source source/other.mp4
+```
+
+It probes the video, transcribes it through the spend gateway while shots are
+detected, has the `annotator` describe each shot from its keyframes (one task
+per shot; it may ask `creative-director`, who rules from the project's
+`brief.md`), and assembles `analysis/blueprint.json` and
+`analysis/source_analysis.md` in `runs/ref-1/`. The `blueprint-review` gate
+in `gates/ref-1` shows each shot's first frame beside what the system thinks
+it shows: `approve` ends the run; `revise: <notes>` has every shot described
+again with your notes.
+
+The source is a path inside the project folder. Without `--source` it is the
+`source` field of the project's `socialv.json`, else `source/original.mov`.
+The first start records the pipeline and source in `runs/<run>/run.json`, so
+restarting a run needs neither flag (and a different one is refused). Without
+`--pipeline`, a new run uses the toy `demo` pipeline.
+
 ## Configuration
 
 All settings come from the environment:
@@ -48,6 +72,35 @@ All settings come from the environment:
 
 `projects/` holds user artifacts (briefs, reference media, run output and the
 local board's data) and is gitignored; nothing in it is ever committed.
+
+## Provider keys
+
+Paid calls (transcription now; image and video generation later) go through
+one process, the spend gateway (`socialv worker --role gateway`, started by
+`up`). It is the only process that reads provider keys. It looks for
+`FAL_KEY` in this order:
+
+1. its environment;
+2. `<project>/secrets.env`, with a line `FAL_KEY=...` (the project folder is never committed);
+3. `.env` in this repository's root (gitignored).
+
+Prefer a file over exporting `FAL_KEY` in your shell: every other worker and
+every agent session has provider keys stripped from its environment, but
+`up` itself, the conductor and the review server inherit your shell's
+variables. Without a key, a paid task fails with a reason naming the file to
+create; the worker keeps running.
+
+Spending caps live in `socialv.json` under `budget` (defaults shown):
+
+```json
+{ "budget": { "run_usd": 5, "day_usd": 10, "auto_approve_usd": 0.5 } }
+```
+
+An action that may cost more than `auto_approve_usd` is refused until the
+approval gate is built. Creating `<project>/.socialv/stop-spend` stops all
+spending. Every attempt is recorded in `runs/<run>/ledger.db` and
+`runs/<run>/manifests/cost_log.csv`. Set `SOCIALV_TRANSCRIBER=fake` to
+transcribe without the network (the default under `SOCIALV_RUNTIME=fake`).
 
 ## Using a network board
 
