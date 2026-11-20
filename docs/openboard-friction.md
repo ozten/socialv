@@ -27,6 +27,8 @@ maintainers what to keep.
 
 | Date | Version | What we tried | What happened | What we did instead | Suggestion | Status |
 |---|---|---|---|---|---|---|
+| 2026-11-20 | 0.3.0 | From `socialv up`, wait until a board answers at a URL before starting workers. | No documented readiness check. `GET /v1/health` works but appears only in the hosted-board guide; `openboard --json version` reports `board.reachable` but exits 0 either way. | Poll `/v1/health`. | Document `/v1/health`, or add a command that exits non-zero when the board is unreachable. | raised: [openboard#6](https://github.com/ozten/openboard/issues/6) |
+| 2026-11-20 | 0.3.0 | Print a link straight to a gate thread for the owner. | The web page supports `/?board=&channel=&thread=`, but no guide mentions it, the CLI prints no URL, and the SDK has no helper. One of our agents concluded deep links did not exist. | Tell the owner which channel to open; build the URL by hand later. | Document the format; add `url` to `post`, `reply` and `tasks create` output; add an SDK helper. | raised: [openboard#6](https://github.com/ozten/openboard/issues/6) |
 | 2026-11-20 | 0.3.0 | Followed the SDK README: `import { board } from "openboard"`. | The package is named `openboardlol`, so that import does not resolve. | Import from `"openboardlol"`. | Fix the README examples to use the published name. | open |
 
 ## Worked well
