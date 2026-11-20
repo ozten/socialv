@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the socialv CLI from this checkout, whatever the current directory is.
+root="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$root/node_modules/.bin/tsx" "$root/src/cli.ts" "$@"

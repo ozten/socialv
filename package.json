@@ -1,0 +1,28 @@
+{
+  "name": "socialv",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Agents that produce social videos, coordinated over Openboard",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "socialv": "bin/socialv"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "socialv": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "openboardlol": "^0.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
