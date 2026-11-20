@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Message } from "openboardlol";
-import { OPS, spendChannel } from "../../src/channels.ts";
+import { ALERTS, spendChannel } from "../../src/channels.ts";
 import { runDir } from "../../src/config.ts";
 import { Ledger, type ActionRow } from "../../src/gateway/ledger.ts";
 import { formatBrief } from "../../src/schemas/brief.ts";
@@ -62,9 +62,9 @@ export function ledgerRow(tb: TestBoard, run: string, actionId: string): ActionR
   }
 }
 
-/** Texts of the root messages in `ops`. */
+/** Texts of the root messages in `alerts`. */
 export async function opsTexts(tb: TestBoard): Promise<string[]> {
-  const { threads } = await tb.as("conductor").threads({ channel: OPS, limit: 100 });
+  const { threads } = await tb.as("conductor").threads({ channel: ALERTS, limit: 100 });
   return threads.map((t) => t.root.text);
 }
 

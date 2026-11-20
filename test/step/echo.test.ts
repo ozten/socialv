@@ -44,7 +44,7 @@ test("echo stamp", async () => {
 
 test("a brief for another role fails the task", async () => {
   // Kept for echo, but the brief names toy-writer.
-  const { task } = await tb.as("conductor").tasks.create("work/r1", {
+  const { task } = await tb.as("conductor").tasks.create("production/r1", {
     text: "Wrong role\n\n```json\n" +
       JSON.stringify({ v: 1, run: "r1", stage: "x", role: "toy-writer", output: "out/x.json", schema: "Text@1" }) +
       "\n```\n",
@@ -95,7 +95,7 @@ test("the worker loop runs steps under the real `openboard tasks run`", async ()
   const conductor = tb.as("conductor");
   const brief = (stage: string, op: string, inputs: string[], out: string) =>
     `${stage}\n\n\`\`\`json\n${JSON.stringify({ v: 1, run: "r2", stage, role: "echo", inputs, output: out, schema: "Text@1", params: { op }, notes: null })}\n\`\`\`\n`;
-  const [upper, stamp] = await conductor.tasks.createMany("work/r2", [
+  const [upper, stamp] = await conductor.tasks.createMany("production/r2", [
     { key: "upper", text: brief("upper", "uppercase", ["in/a.json"], "out/upper.json"), for: "echo" },
     { key: "stamp", text: brief("stamp", "stamp", ["out/upper.json"], "out/final.json"), for: "echo", needs: [{ key: "upper" }] },
   ]);

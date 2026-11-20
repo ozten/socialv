@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { BoardError, MAX_TASKS_PER_BATCH, type Board, type Message, type TaskInBatch } from "openboardlol";
 import { formatGateDecision, parseGateReply, REPLY_FORMS, type GateDecision } from "../board/gate.ts";
-import { gatesChannel, OPS, spendChannel, statusChannel, workChannel } from "../channels.ts";
+import { gatesChannel, ALERTS, spendChannel, statusChannel, workChannel } from "../channels.ts";
 import { runDir, type Config } from "../config.ts";
 import { writeGatePage } from "../review/page.ts";
 import type { GateItem } from "../review/types.ts";
@@ -493,7 +493,7 @@ export class RunDriver {
   /** A gate lives in the gates channel, kept for the conductor itself. */
   private async createGate(node: GateNode, rev: number, notes: string | null, needs: string[]): Promise<string> {
     const text = [
-      `Gate: ${node.title} (revision ${rev})`,
+      `Approval needed: ${node.title}${rev > 1 ? ` (revision ${rev})` : ""}`,
       "",
       node.summary,
       ...(notes ? ["", `Rework notes: ${notes}`] : []),
@@ -698,7 +698,7 @@ export class RunDriver {
     if (labels["attempt-epoch"] !== epoch) {
       if (attempts >= MAX_REOPENS) {
         await this.postOnce(
-          OPS,
+          ALERTS,
           `${this.run}-${rec.node.name}-r${rec.rev}${rec.shot ? `-${rec.shot}` : ""}-failed`,
           `@${this.config.owner} Stage ${rec.node.name}${rec.shot ? ` (${rec.shot})` : ""} (revision ${rec.rev}) of run ${this.run} failed ${attempts + 1} times and is left failed. Last reason: ${clip(task.reason ?? "none given", 2000)} (task ${rec.msg.id})`,
         );

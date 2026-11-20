@@ -31,7 +31,7 @@ export async function runWorker(config: Config, role: string, opts: WorkerOption
 
   while (!signal?.aborted) {
     const started = Date.now();
-    const { code, error, task, state } = await runOnce(config, role, def.channel ?? "work/", [...command, role], signal);
+    const { code, error, task, state } = await runOnce(config, role, def.channel ?? "production/", [...command, role], signal);
     if (signal?.aborted) {
       break;
     }

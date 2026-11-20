@@ -54,7 +54,7 @@ export async function renderGatePage(runDirPath: string, page: GatePage): Promis
 ${items.length ? items.join("\n") : `<p class="muted">This gate has no items.</p>`}
 <section class="decide">
 <h2>How to decide</h2>
-<p>Reply in the board thread <code>${escapeHtml(page.threadId)}</code> (channel <code>gates/${escapeHtml(page.run)}</code>) with one of:</p>
+<p>Reply in the board thread <code>${escapeHtml(page.threadId)}</code> (channel <code>approvals/${escapeHtml(page.run)}</code>) with one of:</p>
 <ul>
 <li><code>approve</code> — everything above.</li>
 <li><code>approve 1,3</code> — only those numbered items; the rest stay open.</li>

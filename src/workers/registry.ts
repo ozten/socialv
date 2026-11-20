@@ -21,7 +21,7 @@ export type RoleKind = "tool" | "agent" | "advisory";
 export interface RoleInfo {
   name: string;
   kind: RoleKind;
-  /** The channel (or `prefix/` subtree) whose ready tasks the role's worker claims. Default `work/`. */
+  /** The channel (or `prefix/` subtree) whose ready tasks the role's worker claims. Default `production/`. */
   channel?: string;
 }
 

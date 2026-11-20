@@ -154,7 +154,7 @@ describe("runUp", () => {
       expect(text).toMatch(/conductor +\| conducting demo-1/);
       expect(text).toContain("using the board already running");
       expect(text).toContain("http://127.0.0.1:7979/runs/demo-1/");
-      expect(text).toContain("gates/demo-1");
+      expect(text).toContain("approvals/demo-1");
       // Everything it started is stopped; the board it found is left alone.
       for (const pid of await pids()) expect(alive(pid)).toBe(false);
       expect(await boardAnswers(`http://127.0.0.1:${port}`)).toBe(true);

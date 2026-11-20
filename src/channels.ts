@@ -1,17 +1,25 @@
-// Channel layout. The kind of channel comes first and the run second, so that
-// prefix grants (`work/`, `gates/`) cover every run on a network board later.
+// Channel layout, named for the production workflow. The kind of channel comes
+// first and the run second, so that prefix grants (`production/`,
+// `approvals/`) cover every run on a network board.
 
+/** Requests to start a run. */
 export const INTAKE = "intake";
-export const OPS = "ops";
+/** Failures and budget stops that need the owner. */
+export const ALERTS = "alerts";
 
-/** Stage tasks, and the conversations in their threads. */
-export const workChannel = (run: string) => `work/${run}`;
-/** Approval gates. Only the conductor and the owner post here. */
-export const gatesChannel = (run: string) => `gates/${run}`;
-/** Paid requests. Only the gateway claims here. */
-export const spendChannel = (run: string) => `spend/${run}`;
-/** Progress and cost digest. */
-export const statusChannel = (run: string) => `status/${run}`;
+/** Prefix of the channels holding a run's work. */
+export const PRODUCTION = "production/";
+/** Prefix of the channels holding paid requests. */
+export const SPEND = "spend/";
+
+/** One thread per piece of work, with the agents' questions and answers. */
+export const workChannel = (run: string) => `${PRODUCTION}${run}`;
+/** One thread per decision that needs the owner. Only the conductor and the owner post here. */
+export const gatesChannel = (run: string) => `approvals/${run}`;
+/** One thread per paid request. Only the gateway claims here. */
+export const spendChannel = (run: string) => `${SPEND}${run}`;
+/** Run milestones and cost so far. */
+export const statusChannel = (run: string) => `progress/${run}`;
 
 /** Board profiles of the processes that are not roles. */
 export const CONDUCTOR = "conductor";

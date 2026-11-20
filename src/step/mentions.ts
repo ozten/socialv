@@ -1,5 +1,5 @@
 // The mention loop for an advisory role: a long-poll on mentions of the role
-// in `work/`, one model session per mention, nothing while idle. One session
+// in `production/`, one model session per mention, nothing while idle. One session
 // per run, resumed for each question so rulings stay consistent.
 
 import { createHash, randomUUID } from "node:crypto";
@@ -29,7 +29,7 @@ export async function runMentions(config: Config, role: string, opts: MentionsOp
   const { signal } = opts;
   const log = (message: string) => process.stderr.write(`socialv mentions ${role}: ${message}\n`);
   const me = connect(config, role);
-  const query = { mentionsMe: true, notFromSelf: true, channel: "work/", types: ["message.posted", "message.edited"] };
+  const query = { mentionsMe: true, notFromSelf: true, channel: "production/", types: ["message.posted", "message.edited"] };
   // The cursor is kept on disk, so a restart does not miss a question asked meanwhile.
   // A cursor belongs to one board, so the file is keyed by the board as well as the role.
   const boardKey = createHash("sha256").update(`${config.boardUrl}\n${config.boardName}`).digest("hex").slice(0, 12);
@@ -83,6 +83,11 @@ async function answer(config: Config, def: AdvisoryRole, event: BoardEvent, sign
   const thread = await me.thread(event.thread_id);
   const mention = [thread.root, ...thread.replies].find((m) => m.id === event.message_id);
   if (!mention || mention.deleted_at || mention.by.profile === role) {
+    return;
+  }
+  // A mention of the bare login (the owner on a local board) matches every
+  // profile under it. Answer only when this role's own profile is named.
+  if (!(mention.mentions ?? []).some((m) => m.profile === role)) {
     return;
   }
   // No chains: advisory roles do not wake each other.

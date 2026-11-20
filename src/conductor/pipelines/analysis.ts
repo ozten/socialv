@@ -28,7 +28,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         name: "probe",
         role: "probe",
         needs: [],
-        summary: `Probe the reference video ${source} and extract its audio.`,
+        summary: `Reference video: measure it and extract the audio (${source})`,
         inputs: [],
         output: PROBE,
         schema: "Probe@1",
@@ -40,7 +40,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         role: "gateway",
         channel: "spend",
         needs: ["probe"],
-        summary: "Transcribe the reference's audio, with word timings.",
+        summary: "Reference audio: transcribe with word timings (paid, about 3 cents a minute)",
         inputs: [PROBE],
         output: TRANSCRIPT,
         schema: "Transcript@1",
@@ -51,7 +51,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         name: "shots",
         role: "shots",
         needs: ["probe"],
-        summary: `Detect the shots of ${source} and pull their keyframes.`,
+        summary: "Reference video: find the shots and pull keyframes",
         inputs: [PROBE],
         output: SHOTS,
         schema: "Shots@1",
@@ -63,7 +63,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         name: "annotate",
         role: "annotator",
         needs: ["shots", "transcribe"],
-        summary: "Describe one shot.",
+        summary: "Shot: describe what happens",
         inputs: [],
         output: ANNOTATIONS,
         schema: "ShotAnnotation@1",
@@ -75,7 +75,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         name: "blueprint",
         role: "blueprint",
         needs: ["annotate"],
-        summary: "Assemble the blueprint from the probe, the shots, the transcript and the annotations.",
+        summary: "Blueprint: assemble the shot-by-shot analysis of the reference",
         inputs: [PROBE, SHOTS, TRANSCRIPT],
         output: BLUEPRINT,
         schema: "Blueprint@1",
@@ -85,7 +85,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         kind: "gate",
         name: "blueprint-review",
         needs: ["blueprint"],
-        title: "Review the analysis of the reference",
+        title: "Reference analysis",
         summary:
           "What the system thinks the reference video shows, shot by shot: check the frames against the descriptions. " +
           "Approve to accept the blueprint; revise with notes to have every shot described again.",
@@ -102,7 +102,7 @@ export async function shotItems(ctx: RunContext): Promise<FanItem[]> {
   const transcript = await exists(path.join(ctx.runDir, TRANSCRIPT));
   return shots.shots.map((shot) => ({
     shot: shot.shot_id,
-    summary: `Describe ${shot.shot_id} (${fmt(shot.start_sec)}–${fmt(shot.end_sec)}).`,
+    summary: `Shot ${shot.shot_id.replace("shot_", "")}: describe what happens (${fmt(shot.start_sec)}–${fmt(shot.end_sec)})`,
     inputs: [...shot.keyframes.map((k) => k.path), SHOTS, ...(transcript ? [TRANSCRIPT] : [])],
     output: `${ANNOTATIONS}/${shot.shot_id}.json`,
   }));

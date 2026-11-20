@@ -13,12 +13,12 @@ test("a task kept for a role is claimed by that profile, and the owner posts as 
   const text = formatBrief("Echo something", {
     v: 1, run: "r1", stage: "echo", role: "echo", output: "out/echo.json", schema: "Echo@1",
   });
-  const { task } = await conductor.tasks.create("work/r1", { text, for: "echo" });
+  const { task } = await conductor.tasks.create("production/r1", { text, for: "echo" });
 
-  const other = await tb.as("someone-else").tasks.claim({ channel: "work/" });
+  const other = await tb.as("someone-else").tasks.claim({ channel: "production/" });
   expect(other).toBeNull();
 
-  const claim = await tb.as("echo").tasks.claim({ channel: "work/" });
+  const claim = await tb.as("echo").tasks.claim({ channel: "production/" });
   expect(claim?.task.id).toBe(task.id);
   expect(parseBrief(claim!.task.text).role).toBe("echo");
   await claim!.complete("done");

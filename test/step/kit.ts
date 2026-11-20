@@ -12,7 +12,7 @@ export function configOf(tb: TestBoard): Config {
 
 /** Plays the conductor: a task kept for the brief's role. */
 export async function createTask(tb: TestBoard, brief: Omit<BriefInput, "v">, summary = "A task"): Promise<Message> {
-  const { task } = await tb.as("conductor").tasks.create(`work/${brief.run}`, {
+  const { task } = await tb.as("conductor").tasks.create(`production/${brief.run}`, {
     text: formatBrief(summary, { v: 1, ...brief }),
     for: brief.role,
   });

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { board } from "openboardlol";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { OPS, statusChannel } from "../../src/channels.ts";
+import { ALERTS, statusChannel } from "../../src/channels.ts";
 import { runDir } from "../../src/config.ts";
 import { RunDriver } from "../../src/conductor/engine.ts";
 import { demoPipeline } from "../../src/conductor/pipelines/demo.ts";
@@ -276,7 +276,7 @@ test(
     });
     const conductor = startConductor(tb, run);
     const alert = await waitFor("the ops alert", async () =>
-      (await threadsIn(tb, OPS)).find((m) => m.text.includes(`run ${run}`)),
+      (await threadsIn(tb, ALERTS)).find((m) => m.text.includes(`run ${run}`)),
     );
     expect(alert.text).toContain("@local ");
     expect(alert.text).toContain("boom 3");
@@ -291,7 +291,7 @@ test(
     const again = startConductor(tb, run);
     await sleep(800);
     expect(failures).toBe(3);
-    expect((await threadsIn(tb, OPS)).filter((m) => m.text.includes(`run ${run}`))).toHaveLength(1);
+    expect((await threadsIn(tb, ALERTS)).filter((m) => m.text.includes(`run ${run}`))).toHaveLength(1);
     expect(await again.stop()).toBe("aborted");
     await workers.stop();
   },

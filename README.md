@@ -26,7 +26,7 @@ bin/socialv up --run demo-1   # board, review server, workers and the conductor
 
 `up` starts a local board if none answers at `BOARD_URL`, then prints the
 board's URL and the review server's URL. Open the board's web page, go to the
-`gates/demo-1` channel, open the gate's review page from the packet, and reply
+`approvals/demo-1` channel, open the gate's review page from the packet, and reply
 in the gate's thread with `approve`, `approve 1,3`, `revise: <notes>` or
 `reject: <reason>`. Ctrl-C stops everything `up` started.
 
@@ -47,7 +47,7 @@ detected, has the `annotator` describe each shot from its keyframes (one task
 per shot; it may ask `creative-director`, who rules from the project's
 `brief.md`), and assembles `analysis/blueprint.json` and
 `analysis/source_analysis.md` in `runs/ref-1/`. The `blueprint-review` gate
-in `gates/ref-1` shows each shot's first frame beside what the system thinks
+in `approvals/ref-1` shows each shot's first frame beside what the system thinks
 it shows: `approve` ends the run; `revise: <notes>` has every shot described
 again with your notes.
 

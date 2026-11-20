@@ -52,6 +52,15 @@ They are in time order. Use only the Read tool for files; use Bash only for
 - \`notes\`: anything uncertain, or worth knowing to remake the shot (a cut
   inside the shot, a transition, text that is partly hidden), or null.
 
+Screen recordings: the reference is often a phone screen recording of a
+social app, so the app's own interface may sit on top of the video: the
+account name, a caption bar, a progress bar or time counter, like and share
+buttons. That is not part of the ad. Leave it out of \`on_screen_text\` and
+the other fields, and say once in \`notes\` what you left out (for example
+"app caption bar at the bottom ignored"). Text the ad's maker put in the
+picture (titles, stickers, burned-in captions) does belong in
+\`on_screen_text\`.
+
 Rules:
 
 - Never identify a real person by name, even if you think you recognise them,

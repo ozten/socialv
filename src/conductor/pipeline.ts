@@ -26,7 +26,7 @@ export interface FanOut {
   items(ctx: RunContext): Promise<FanItem[]>;
 }
 
-/** Where a stage's tasks live: `work/<run>`, or `spend/<run>` for paid calls the gateway claims. */
+/** Where a stage's tasks live: `production/<run>`, or `spend/<run>` for paid calls the gateway claims. */
 export type ChannelKind = "work" | "spend";
 
 /**
