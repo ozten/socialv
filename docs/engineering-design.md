@@ -282,7 +282,7 @@ around one API call, not an open-ended session.
   either a **hard** check (pass or fail: right product, right setting, no
   source watermark, plausible hands) or a **scored** one (1 to 5: timing,
   framing, continuity, likeness to references).
-- **Scorecard**, at `renders/draft/<shot>/<take>.judge.<judge>.json`:
+- **Scorecard**, at `renders/takes/<shot>/<take>.judge.<judge>.json`:
 
   ```json
   {
@@ -435,7 +435,6 @@ and no agent session exists.
 | Test review | After | Candidates side by side; chooses a method per shot |
 | Batch spend | Before | Every shot's request and the total estimate |
 | Take review | After | Each take with its judge scorecards; select, retry or drop |
-| Final-resolution spend | Before | Selected takes to render at final resolution, cost |
 | Final cut | After | The assembled video |
 
 ### 6.3 What an approval binds to
@@ -533,16 +532,18 @@ Generic stages. `tool` means code; `agent` means a language-model session;
 | — | **Gate: creative** | | |
 | 7 | Build the reference role manifest; request keyframes where needed | agent, then gateway (small) | `creative/references.json`, `assets/generated_keyframes/` |
 | 8 | Write the prompt and envelope per shot | agent, one task per shot | `creative/shot_prompts.json`, `manifests/envelopes/` |
-| — | **Gate: test spend** → 9. test renders (gateway) → **Gate: test review** | | `renders/draft/` |
+| — | **Gate: test spend** → 9. test renders (gateway) → **Gate: test review** | | `renders/takes/` |
 | — | **Gate: batch spend** | | |
-| 10 | Render each approved shot | gateway, one task per shot | `renders/draft/<shot>/<take>.mp4` |
-| 11 | Score each take against the brief's checklist | judge, one task per take per judge | `renders/draft/<shot>/<take>.judge.<judge>.json` |
+| 10 | Render each approved shot | gateway, one task per shot | `renders/takes/<shot>/<take>.mp4` |
+| 11 | Score each take against the brief's checklist | judge, one task per take per judge | `renders/takes/<shot>/<take>.judge.<judge>.json` |
 | — | **Gate: take review** (retries loop to 8 for that shot) | | `renders/selected/` |
-| — | **Gate: final-resolution spend** → 12. final renders (gateway) | | `renders/final_shots/` |
 | 13 | Voiceover and timing alignment | gateway (small) or a recorded file | `assets/audio/` |
 | 14 | Assemble: cut, captions, overlays, label composite, mix (`ffmpeg`) | tool | `final/<name>.mp4` |
 | — | **Gate: final cut** | | |
 | 15 | Package deliverables and the cost log | tool | `manifests/generation_jobs.jsonl`, `manifests/cost_log.csv` |
+
+All video is generated at 720p, to keep cost down. There is no separate
+final-resolution pass: the selected take is the one used in the edit.
 
 Stages 2 and 3 run in parallel. Stages 4, 8, 10 and 11 fan out per shot.
 The creative director has no stage: stages 4, 6, 7 and 8 may ask it
@@ -622,8 +623,7 @@ docs/             this design, the PRD, the friction log
 
 TypeScript on Node 22, ES modules, `zod` for schemas, `@fal-ai/client` for
 fal, `better-sqlite3` for the ledger, `vitest` for tests. The Openboard SDK
-is not on npm yet, so it is a `file:../openboard/sdk/typescript` dependency
-until it is.
+is the npm package `openboardlol`.
 
 ## 10. Testing
 

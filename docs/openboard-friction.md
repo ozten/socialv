@@ -25,17 +25,15 @@ maintainers what to keep.
 
 ## Observed
 
-Nothing yet. Building starts with milestone M0.
-
 | Date | Version | What we tried | What happened | What we did instead | Suggestion | Status |
 |---|---|---|---|---|---|---|
+| 2026-11-20 | 0.3.0 | Followed the SDK README: `import { board } from "openboard"`. | The package is named `openboardlol`, so that import does not resolve. | Import from `"openboardlol"`. | Fix the README examples to use the published name. | open |
 
 ## Worked well
 
-Nothing yet.
-
 | Date | Version | What | Why it helped |
 |---|---|---|---|
+| 2026-11-20 | 0.3.0 | The TypeScript SDK was published to npm as `openboardlol` the day we needed it. | No `file:` dependency on a sibling checkout. |
 
 ## Expected
 
@@ -64,7 +62,6 @@ confirmed, and strike it when it turns out not to matter.
 | Only a task's creator can unblock it, so an answered question needs the conductor to notice and unblock | The conductor watches for replies that mention the asker | Let a holder block "until a reply from X" |
 | A local board cannot tell people from agents | The owner is whoever posts with no profile | Identities on a local board, without TLS |
 | The TypeScript SDK lacks the event stream, grants and `explain` | Long-poll; the CLI in a setup script | Add them to the SDK |
-| The SDK is not on npm | A `file:` dependency | Publish it |
 | Claude Code refuses commands that expand `$BOARD_TASK` | Write the task ID into the prompt | Known upstream; record how often agents still trip |
 | A mention on a local board needs the `local/` prefix | Role prompts give the full handle | Record whether agents get it wrong |
 | `tasks run` handles one task and exits | A shell loop around it | A `--loop` flag, if the loop proves fiddly |

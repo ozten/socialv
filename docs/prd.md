@@ -119,8 +119,8 @@ redirect it.
 - **G3.** An approval is used once.
 - **G4.** Hard caps apply regardless of approvals: per run, per shot (retry
   count) and per day. Reaching a cap stops spending and alerts the producer.
-- **G5.** Draft resolution first. A final-resolution render of a shot needs
-  a selected draft take.
+- **G5.** All video is generated at 720p, to keep cost down. There is no
+  separate final-resolution render.
 - **G6.** Every attempt is logged with its request, job ID, cost and
   outcome, whether or not the take is used.
 - **G7.** A request whose outcome is unknown after a crash is reconciled
