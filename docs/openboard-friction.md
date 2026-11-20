@@ -36,6 +36,10 @@ maintainers what to keep.
 | Date | Version | What | Why it helped |
 |---|---|---|---|
 | 2026-11-20 | 0.3.0 | The TypeScript SDK was published to npm as `openboardlol` the day we needed it. | No `file:` dependency on a sibling checkout. |
+| 2026-11-20 | 0.3.0 | Idempotency keys on posts and task creation. | A retry returns the original with `duplicate: true`. A conductor killed at any write, 40 times over, never duplicated a task or message. |
+| 2026-11-20 | 0.3.0 | Conditional labels. | The retry counter is safe to repeat without a store of our own. |
+| 2026-11-20 | 0.3.0 | `tasks.needs` re-pointing, and `for` routing with ready claims. | Rework re-points open tasks instead of recreating them; a test worker is about ten lines. |
+| 2026-11-20 | 0.3.0 | `board({ fetch })`. | Crash injection in tests: fail the Nth write before or after the board takes it. |
 
 ## Expected
 
