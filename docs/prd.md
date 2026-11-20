@@ -141,6 +141,14 @@ redirect it.
 - **H3.** A gate can be approved in part ("shots 1, 3 and 4").
 - **H4.** A gate left unanswered costs nothing. No process spends tokens
   while it waits.
+- **H5.** A review page lets the producer make each choice by clicking: per
+  shot, select a take, ask for a retry with notes, or drop it. The page
+  builds the exact reply and links to the thread. The producer sends the
+  reply on the board themselves, because only the board can verify that a
+  decision came from them. Our pages never post a decision.
+- **H6.** One page shows a run at a glance: the stage it is at, what is
+  waiting on the producer with links to those threads, and spend against
+  the caps.
 
 ### 6.4 Agents that talk to each other
 
@@ -211,8 +219,11 @@ redirect it.
 - Verified identities and per-agent permissions on the board. They arrive
   with network mode, after the first full run.
 - Judges with authority to select takes or trigger retries.
-- A custom web application. The board's page and static review pages are
-  the interface.
+- An interface that replaces the board. Our pages cover what the board
+  cannot show or summarise: media review, composing a decision, and a run
+  overview. They read from the board and the run folder and write to
+  neither. Conversations, questions, alerts and every decision stay on the
+  board.
 - Video providers other than fal.ai, and models other than Seedance 2.5.
 - Lip-sync passes, music generation, and automatic A/B testing of creative.
 - Cloud deployment. Everything runs on the producer's machine, with the
@@ -239,7 +250,7 @@ redirect it.
 | M0 | Board and skeleton | A fake pipeline runs on a local board; one agent asks another a question and gets an answer in the thread; a gate is approved from the browser; idle processes spend no tokens. |
 | M1 | Analysis | A reference video becomes a transcript, shot list, keyframes and annotated blueprint that the producer finds accurate. |
 | M2 | Adaptation and one test render | Creative approval, then one approved test segment rendered two ways through the gateway, scored by the video judge, reviewed, and a method chosen. |
-| M3 | Full run | Every shot rendered, judged and reviewed, the cut assembled, the final gate passed, deliverables packaged. |
+| M3 | Full run | Every shot rendered, judged and reviewed on a page where choices are clicked, the cut assembled, the final gate passed, deliverables packaged. A run overview page. |
 | M4 | Learnings | Network mode with grants and a verified owner; friction log reviewed with Openboard; decisions on what to send upstream. |
 
 M0 to M2 use a short reference clip and a small budget, so mistakes are
