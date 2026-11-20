@@ -2,10 +2,11 @@
 // in `work/`, one model session per mention, nothing while idle. One session
 // per run, resumed for each question so rulings stay consistent.
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { board, BoardError, type BoardEvent } from "openboardlol";
+import { BoardError, type BoardEvent } from "openboardlol";
+import { connect } from "../board/connect.ts";
 import { runDir, type Config } from "../config.ts";
 import { advisoryRoles, getRole } from "../workers/registry.ts";
 import type { AdvisoryRole, MentionContext } from "../workers/types.ts";
@@ -27,10 +28,12 @@ export async function runMentions(config: Config, role: string, opts: MentionsOp
   }
   const { signal } = opts;
   const log = (message: string) => process.stderr.write(`socialv mentions ${role}: ${message}\n`);
-  const me = board({ url: config.boardUrl, name: config.boardName, profile: role });
+  const me = connect(config, role);
   const query = { mentionsMe: true, notFromSelf: true, channel: "work/", types: ["message.posted", "message.edited"] };
   // The cursor is kept on disk, so a restart does not miss a question asked meanwhile.
-  const cursorFile = path.join(config.projectDir, ".socialv", `mentions-${role}.cursor`);
+  // A cursor belongs to one board, so the file is keyed by the board as well as the role.
+  const boardKey = createHash("sha256").update(`${config.boardUrl}\n${config.boardName}`).digest("hex").slice(0, 12);
+  const cursorFile = path.join(config.projectDir, ".socialv", `mentions-${role}-${boardKey}.cursor`);
   const handled = new Set<string>();
   let ready = false;
   let delay = 1000;
@@ -76,7 +79,7 @@ export async function runMentions(config: Config, role: string, opts: MentionsOp
 
 async function answer(config: Config, def: AdvisoryRole, event: BoardEvent, signal?: AbortSignal): Promise<void> {
   const role = def.name;
-  const me = board({ url: config.boardUrl, name: config.boardName, profile: role });
+  const me = connect(config, role);
   const thread = await me.thread(event.thread_id);
   const mention = [thread.root, ...thread.replies].find((m) => m.id === event.message_id);
   if (!mention || mention.deleted_at || mention.by.profile === role) {

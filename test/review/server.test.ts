@@ -52,6 +52,7 @@ beforeAll(async () => {
   const config: Config = {
     boardUrl: "http://127.0.0.1:1",
     boardName: "test",
+    principal: "local",
     owner: "local",
     projectDir,
     reviewUrl: "http://127.0.0.1:1",

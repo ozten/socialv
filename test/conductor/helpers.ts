@@ -11,6 +11,7 @@ export function testConfig(tb: TestBoard): Config {
   return {
     boardUrl: tb.url,
     boardName: tb.name,
+    principal: "local",
     owner: "local",
     projectDir: tb.projectDir,
     reviewUrl: "http://review.test",

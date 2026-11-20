@@ -7,8 +7,9 @@
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { board, BoardError, type Board, type Message } from "openboardlol";
-import { localHandle, runDir, type Config } from "../config.ts";
+import { BoardError, type Board, type Message } from "openboardlol";
+import { connect } from "../board/connect.ts";
+import { handleOf, runDir, type Config } from "../config.ts";
 import { parseBrief, type Brief } from "../schemas/brief.ts";
 import { promptFor } from "../workers/agents/common.ts";
 import { getRole } from "../workers/registry.ts";
@@ -39,7 +40,7 @@ export async function runStep(config: Config, role: string, env: NodeJS.ProcessE
     return 2;
   }
 
-  const me = board({ url: config.boardUrl, name: config.boardName, profile: role });
+  const me = connect(config, role);
   const held = me.tasks.held(taskId, { epoch, token });
   try {
     const view = await me.tasks.get(taskId);
@@ -196,7 +197,7 @@ export function countQuestions(replies: Message[], role: string, owner: string):
 
 async function runAgent(def: AgentRole, step: StepContext): Promise<Outcome> {
   const { config, role, taskId, me } = step;
-  const self = localHandle(role);
+  const self = handleOf(config, role);
 
   const asked = countQuestions(step.replies, role, config.owner);
   if (asked > MAX_QUESTIONS) {

@@ -3,10 +3,12 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { board, type Board } from "openboardlol";
+import type { Board } from "openboardlol";
+import { connect } from "../../board/connect.ts";
+import { loadConfig } from "../../config.ts";
 
 export function fakeBoard(env: NodeJS.ProcessEnv, role: string): Board {
-  return board({ url: env.BOARD_URL, name: env.BOARD_NAME, profile: role });
+  return connect(loadConfig(env), role, env);
 }
 
 export async function writeJson(file: string, value: unknown): Promise<void> {

@@ -5,8 +5,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { boardAnswers as boardAnswersAs } from "./board/connect.ts";
 import { gatesChannel } from "./channels.ts";
-import type { Config } from "./config.ts";
+import { runDir, type Config } from "./config.ts";
 import { listRoles, type RoleInfo } from "./workers/registry.ts";
 
 // ---------------------------------------------------------------- supervisor
@@ -240,7 +241,11 @@ export async function runUp(config: Config, opts: UpOptions): Promise<number> {
 
   try {
     // The board: use one that answers; otherwise start a local one, which we own.
-    if (await boardAnswers(config.boardUrl)) {
+    // A network board needs our login to answer; a local one has a plain health route.
+    const answers = config.boardUrl.startsWith("https://")
+      ? await boardAnswersAs(config)
+      : await boardAnswers(config.boardUrl);
+    if (answers) {
       sup.log("up", `using the board already running at ${config.boardUrl}`);
     } else {
       const url = new URL(config.boardUrl);
@@ -294,7 +299,11 @@ export async function runUp(config: Config, opts: UpOptions): Promise<number> {
       sup.log("up", "stopping");
       return signalCode();
     }
-    sup.log("up", `conductor finished with code ${outcome}; stopping`);
+    // The run is over, so `up` has nothing left to do: say so plainly before it exits.
+    const result = outcome === 0 ? "completed" : outcome === 3 ? "was rejected at a gate" : `failed (conductor exit code ${outcome})`;
+    sup.log("up", `run ${opts.run} ${result}.`);
+    sup.log("up", `its files are in ${runDir(config, opts.run)}`);
+    sup.log("up", "stopping the workers and the review server; the board's threads keep the record.");
     return outcome;
   } finally {
     await sup.stopAll();

@@ -48,3 +48,27 @@ All settings come from the environment:
 
 `projects/` holds user artifacts (briefs, reference media, run output and the
 local board's data) and is gitignored; nothing in it is ever committed.
+
+## Using a network board
+
+By default `up` starts a local board on loopback. To use a board that is
+already running, such as a network board on your LAN:
+
+1. On the board's host, invite an agent: `openboard invite socialv`.
+2. Here, run `openboard join <invite>`. The login is stored by the
+   `openboard` CLI, and socialv reads the same login.
+3. Put the board and the owner in `projects/<project>/socialv.json`:
+
+   ```json
+   {
+     "boardUrl": "https://192.168.64.1:7878",
+     "boardName": "socialv-demo",
+     "owner": "you@example.com"
+   }
+   ```
+
+`owner` is the handle whose gate decisions are trusted. On a network board
+it is the owner's email address, which the board verifies, so only that
+signed-in person can approve. On a local board it is `local`, by convention.
+Every socialv process posts as a profile of the enrolled agent, such as
+`socialv/conductor`. The environment variables below override the file.

@@ -33,6 +33,7 @@ function config(boardUrl: string): Config {
   return {
     boardUrl,
     boardName: "test",
+    principal: "local",
     owner: "local",
     projectDir: path.join(root, "project"),
     reviewUrl: "http://127.0.0.1:7979",

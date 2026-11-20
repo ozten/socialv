@@ -1,4 +1,4 @@
-import { board } from "openboardlol";
+import { connect } from "../board/connect.ts";
 import { CONDUCTOR } from "../channels.ts";
 import type { Config } from "../config.ts";
 import { RunDriver } from "./engine.ts";
@@ -23,7 +23,7 @@ export async function runConductor(
     log?: (line: string) => void;
   },
 ): Promise<"completed" | "rejected" | "aborted"> {
-  const handle = board({ url: config.boardUrl, name: config.boardName, profile: CONDUCTOR });
+  const handle = connect(config, CONDUCTOR);
   const driver = new RunDriver(config, opts.run, opts.pipeline ?? demoPipeline(), handle, { log: opts.log });
   return driver.drive(opts.signal);
 }

@@ -5,7 +5,7 @@
 // - SOCIALV_FAKE_INVALID=1: write output that does not match the schema
 
 import { BoardError, type Message } from "openboardlol";
-import { localHandle } from "../../../config.ts";
+import { handleOf } from "../../../config.ts";
 import type { AgentTaskContext, FakeBehavior } from "../../types.ts";
 import { mentionOf } from "../common.ts";
 import { fakeBoard, withoutMentions, writeJson } from "../fake-kit.ts";
@@ -37,7 +37,7 @@ export const fake: FakeBehavior = async (ctx, { env }) => {
 
   const me = fakeBoard(env, ctx.role);
   const question = `What tone should the sentence about ${String(ctx.brief.params.topic)} take?`;
-  const asked = await me.reply(ctx.taskId, `${mentionOf(DIRECTOR)} ${question}`);
+  const asked = await me.reply(ctx.taskId, `${mentionOf(ctx.config, DIRECTOR)} ${question}`);
   const waitSecs = Number(env.SOCIALV_FAKE_WAIT ?? ctx.waitSecs);
   const event = await me.wait({ thread: ctx.taskId, mentionsMe: true, after: asked.cursor }, { timeout: waitSecs });
   if (event) {
@@ -62,7 +62,7 @@ export const fake: FakeBehavior = async (ctx, { env }) => {
 
 /** The latest reply to this role that is not its own. */
 function answerIn(ctx: AgentTaskContext, replies: Message[]): string | null {
-  const self = localHandle(ctx.role);
+  const self = handleOf(ctx.config, ctx.role);
   const answers = replies.filter((m) => m.by.handle !== self);
   const last = answers[answers.length - 1];
   return last ? withoutMentions(last.text) : null;

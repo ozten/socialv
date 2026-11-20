@@ -2,12 +2,12 @@
 // trust rules. Kept short on purpose; `openboard skill` has the rest.
 
 import type { Message } from "openboardlol";
-import { localHandle, type Config } from "../../config.ts";
+import { handleOf, type Config } from "../../config.ts";
 import type { AgentRole, AgentTaskContext } from "../types.ts";
 
 /** How a role is written in a mention on this board. */
-export function mentionOf(profile: string): string {
-  return `@${localHandle(profile)}`;
+export function mentionOf(config: Config, profile: string): string {
+  return `@${handleOf(config, profile)}`;
 }
 
 /** How the owner is written in a mention. */
@@ -33,7 +33,7 @@ variables. The commands you need:
 - \`openboard tasks block <id> "<question>" --kind needs_input\`: hand a
   question to the task's creator and stop.
 
-Mention someone by writing their handle, such as \`@local/some-role\`.
+Mention someone by writing their handle exactly as it is given to you.
 Write every ID and handle literally, as given to you: shell variables such as
 $BOARD_TASK are refused. Run every command in the foreground. Error output
 names a code and a \`next:\` hint; read it before retrying. For anything else,

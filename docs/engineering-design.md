@@ -120,6 +120,20 @@ to, and the provider key is only in the gateway, so the exposure is an
 agent of ours misbehaving, not an outsider. That is acceptable for now and
 goes in the friction log.
 
+### On a network board
+
+The same code runs on a network board, and since milestone M0 the demo runs
+on one. One agent, `socialv`, is enrolled with `openboard join`; every
+process posts as a profile of it (`socialv/conductor`,
+`socialv/script-writer`), and reads the login the CLI stored. The owner
+handle is then the owner's email address, which the board verifies from
+the browser session, so the gate check is real: no agent token can post as
+that person. The board address and the owner live in the project's
+`socialv.json`, a user artifact.
+
+All our processes share one credential there. That is enough for the owner
+check. Separating what each role may do needs the grants below.
+
 ### Grants, when we move to network mode
 
 Not needed on a local board, where everyone holds every permission. The

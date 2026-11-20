@@ -16,7 +16,7 @@ ${trustRules(config)}
 ## Asking questions
 
 - Ask by replying in your own task's thread, mentioning the one you ask.
-  The creative director is ${mentionOf(DIRECTOR)}.
+  The creative director is ${mentionOf(config, DIRECTOR)}.
 - After asking, wait once with \`openboard wait --thread <task> --mentions-me
   --after <cursor> --timeout 4m\`. Never run wait a second time.
 - If the wait times out, run \`openboard tasks block <task> "<your question>"
@@ -39,8 +39,8 @@ export function taskPrompt(ctx: AgentTaskContext): string {
     : "";
   const asking =
     ctx.questionsLeft > 0
-      ? `1. Ask ${mentionOf(DIRECTOR)} one question about the tone of the sentence:
-   \`openboard reply ${ctx.taskId} "${mentionOf(DIRECTOR)} <your question>"\`
+      ? `1. Ask ${mentionOf(ctx.config, DIRECTOR)} one question about the tone of the sentence:
+   \`openboard reply ${ctx.taskId} "${mentionOf(ctx.config, DIRECTOR)} <your question>"\`
 2. Wait once for the answer, with the cursor the reply printed:
    \`openboard wait --thread ${ctx.taskId} --mentions-me --after <cursor> --timeout 4m\`
 3. If it timed out: \`openboard tasks block ${ctx.taskId} "<your question>" --kind needs_input\`, then stop.

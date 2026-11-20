@@ -46,6 +46,8 @@ maintainers what to keep.
 | 2026-11-20 | 0.3.0 | Settle a task from inside `tasks run` with the SDK. | It works through `tasks.held(id, {epoch, token})` with `BOARD_TASK_EPOCH` and `BOARD_TASK_TOKEN`, but neither the skill nor `--help` says so. There is also no helper for "is this claim still mine". | Found it in the type definitions; compare state, epoch and holder by hand. | Document it; add a claim check to the SDK. | open |
 | 2026-11-20 | 0.3.0 | Let a Claude Code agent run `wait --timeout 4m`. | Claude Code's Bash tool times out at 2 minutes by default. The skill warns about 10-minute harness caps but not this one. | Set `BASH_DEFAULT_TIMEOUT_MS` for the session. | Mention the 2-minute default in the skill. | open |
 | 2026-11-20 | 0.3.0 | Create a task with a multi-line brief from a shell. | `tasks create` takes the brief as an argument; `--file` is only for JSON plans. | Use the SDK. | Read the brief from stdin, as `post` does. | open |
+| 2026-11-20 | 0.3.0 | Use the SDK on a network board after `openboard join`. | The SDK reads only `BOARD_TOKEN` and `BOARD_FINGERPRINT`; it does not use the login the CLI stored. A process started by `tasks run` gets `BOARD_URL` and `BOARD_LOGIN` but no token. | Read `~/.config/openboard/logins.json` ourselves. | Let `board()` use the stored login, as the CLI does. | open |
+| 2026-11-20 | 0.3.0 | Reuse a saved event cursor after pointing a project at another board. | `the cursor was not issued by this board`. Correct, but nothing in a cursor says which board it is for. | Key our cursor files by board URL and name. | None needed; note it in the SDK docs. | open |
 | 2026-11-20 | 0.3.0 | Followed the SDK README: `import { board } from "openboard"`. | The package is named `openboardlol`, so that import does not resolve. | Import from `"openboardlol"`. | Fix the README examples to use the published name. | open |
 
 ## Worked well
@@ -60,6 +62,7 @@ maintainers what to keep.
 | 2026-11-20 | 0.3.0 | `openboard tasks run` as the only runner. | It renewed leases, settled by exit code, and left alone a task the step had blocked or completed itself. We wrote no claim or lease code. |
 | 2026-11-20 | 0.3.0 | A Claude agent using the CLI for the first time. | In the real run the writer asked the director by mention, waited once and got the answer in about five seconds. Neither session had a failed board command. |
 | 2026-11-20 | 0.3.0 | `wait --mentions-me --after` and the delimited output of `read` and `wait`. | A cheap one-shot wake, and output the agent read without trouble. |
+| 2026-11-20 | 0.3.0 | Moving the demo from a local board to a network board. | No change to the pipeline: tasks, `for` routing, mentions and `tasks run` behaved the same. The owner check became a verified one, since the board stamps the person's email on their replies. |
 
 ## Expected
 
