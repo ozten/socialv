@@ -31,7 +31,7 @@ acts only on a person's recorded approval of the exact request.
 
 | Who | What they do |
 |---|---|
-| **Producer** (one person at first) | Writes the brief, supplies the reference video and brand assets, approves and reviews at each gate, takes the final video and uploads it. |
+| **Producer**, the run's **owner** (one person at first) | Writes the brief, supplies the reference video and brand assets, approves and reviews at each gate, takes the final video and uploads it. |
 | **Operator** (the same person at first) | Runs the board and the socialv processes, sets budgets, reads the cost log. |
 | **Openboard maintainers** | Read the friction log and decide what to build next. |
 
@@ -71,8 +71,8 @@ setting. Those come from the brief.
    generation method per shot.
 9. **Gate: batch spend.** The producer sees every shot's request and the
    total estimate, and approves all or some.
-10. The gateway renders the approved shots. An agent screens the takes
-    against the brief's checklist and writes notes.
+10. The gateway renders the approved shots. A judge scores each take
+    against the brief's checklist and writes a scorecard.
 11. **Gate: take review.** For each shot the producer selects a take, asks
     for a retry with notes, or drops the shot. A retry is new spending and
     returns to step 9 for that shot.
@@ -84,6 +84,13 @@ setting. Those come from the brief.
 The producer does all of this from the board's web page and the review
 pages it links to. They are mentioned when a gate opens, and nothing
 proceeds past a gate until they answer.
+
+Between gates the agents work in the open. Each task has a thread on the
+board where its agent posts progress. Agents ask each other questions
+there: the script writer asks the creative director whether a line fits the
+brand voice, and the answer appears in the same thread. The producer can
+read any thread, answer a question themselves, or mention an agent to
+redirect it.
 
 ## 6. Requirements
 
@@ -126,13 +133,44 @@ proceeds past a gate until they answer.
 
 - **H1.** A gate shows the producer what they are approving: the text, the
   images or video, the requests and the cost.
-- **H2.** An approval counts only when the board attributes it to a person
-  on the approver list. An agent cannot produce one.
+- **H2.** An approval counts only when it comes from the owner's handle,
+  which is set in local configuration. While we run a local board this is
+  trust by convention, since a local board does not verify authors; it
+  becomes a verified check on a network board with no change to the
+  workflow.
 - **H3.** A gate can be approved in part ("shots 1, 3 and 4").
 - **H4.** A gate left unanswered costs nothing. No process spends tokens
   while it waits.
 
-### 6.4 Truthfulness and rights
+### 6.4 Agents that talk to each other
+
+- **A1.** An agent can ask another agent role a question in its task's
+  thread and receive the answer in the same session when the answer is
+  quick.
+- **A2.** A question that is not answered quickly parks the task at no
+  cost; the task resumes with its context when the answer arrives.
+- **A3.** An advisory role, the creative director, holds the brief's intent
+  and answers such questions consistently across a run. Its rulings are
+  written to a decision log.
+- **A4.** Conversations are bounded: a limit on questions per task, and
+  advisory roles do not consult other agents.
+- **A5.** The owner can read every conversation, answer in place of an
+  agent, and address any agent by mention.
+
+### 6.5 Judges
+
+- **J1.** Every rendered take is scored by at least one multimodal judge
+  that watches the video itself. The first is Gemini.
+- **J2.** A scorecard has pass or fail checks and 1 to 5 scores, each with
+  evidence, built from the brief's quality checklist.
+- **J3.** Judges advise. They do not select takes or cause spending. The
+  owner sees every take, ordered by score.
+- **J4.** The owner's decisions are logged against the scores, so that we
+  can measure how often a judge agrees with the owner.
+- **J5.** Adding a judge, for video or for another artifact such as the
+  script, needs no change to the pipeline.
+
+### 6.6 Truthfulness and rights
 
 - **T1.** The adaptation stage flags every product claim and checks it
   against the claims sheet. Unsupported claims block creative approval until
@@ -142,21 +180,25 @@ proceeds past a gate until they answer.
 - **T3.** Before a real person's likeness is uploaded to a provider, the
   gate packet says so and names the reference files.
 
-### 6.5 Dogfooding Openboard
+### 6.7 Dogfooding Openboard
 
 - **D1.** All coordination between processes goes through the board: work
   hand-off, questions, approvals, status. No side channel.
-- **D2.** The board runs in network mode with grants, so each identity holds
-  only what it needs.
+- **D2.** We start on a local board, for speed. Channels are laid out so
+  that a later move to network mode with grants needs no renaming.
 - **D3.** A friction log records every place the board made something hard,
   with what we did instead. It is reviewed at the end of each milestone.
-- **D4.** At least one agent role is run "board-native" (the agent itself
-  uses the `openboard` CLI and skill) to compare with the default, where a
-  runner speaks to the board for the agent.
+- **D4.** Agents use the `openboard` CLI and skill themselves. For each
+  task we record board commands run, which failed and why, and tokens
+  spent, as evidence of how the agent-facing surface holds up.
 
-### 6.6 Efficiency
+### 6.8 Efficiency
 
-- **E1.** No language model is invoked to wait, poll or check status.
+- **E1.** No language model is invoked to poll or check status. An agent
+  may wait once, briefly, for an answer to its own question.
+- **E4.** Agent roles run on `claude -p` under the owner's subscription by
+  default. Other runtimes and models plug in per role, with their own
+  keys.
 - **E2.** Deterministic work (probing, scene detection, transcription,
   rendering, editing) is code, not an agent.
 - **E3.** An agent session starts with the brief and pointers to files, not
@@ -165,7 +207,10 @@ proceeds past a gate until they answer.
 ## 7. Not in scope for the first version
 
 - Posting to TikTok, Instagram or any platform. The producer uploads.
-- Several producers, roles or approval policies beyond an approver list.
+- Several producers, roles or approval policies beyond a single owner.
+- Verified identities and per-agent permissions on the board. They arrive
+  with network mode, after the first full run.
+- Judges with authority to select takes or trigger retries.
 - A custom web application. The board's page and static review pages are
   the interface.
 - Video providers other than fal.ai, and models other than Seedance 2.5.
@@ -183,17 +228,19 @@ proceeds past a gate until they answer.
 | Spend against the approved budget | At or under |
 | Producer time at gates, per run | Measured; baseline for later |
 | Share of takes the producer selects first time | Measured; baseline for later |
+| Agreement between the video judge and the producer | Measured; baseline for later |
+| Agent questions answered without the producer | Measured; baseline for later |
 | Friction log entries with an upstream issue or decision | All of them |
 
 ## 9. Milestones
 
 | # | Name | Done when |
 |---|---|---|
-| M0 | Board and skeleton | A fake pipeline of echo workers runs on a network board; a gate is approved from the browser; idle processes spend no tokens. |
+| M0 | Board and skeleton | A fake pipeline runs on a local board; one agent asks another a question and gets an answer in the thread; a gate is approved from the browser; idle processes spend no tokens. |
 | M1 | Analysis | A reference video becomes a transcript, shot list, keyframes and annotated blueprint that the producer finds accurate. |
-| M2 | Adaptation and one test render | Creative approval, then one approved test segment rendered two ways through the gateway, reviewed, and a method chosen. |
-| M3 | Full run | Every shot rendered and reviewed, the cut assembled, the final gate passed, deliverables packaged. |
-| M4 | Learnings | Friction log reviewed with Openboard; board-native agent experiment done; decisions on what to send upstream. |
+| M2 | Adaptation and one test render | Creative approval, then one approved test segment rendered two ways through the gateway, scored by the video judge, reviewed, and a method chosen. |
+| M3 | Full run | Every shot rendered, judged and reviewed, the cut assembled, the final gate passed, deliverables packaged. |
+| M4 | Learnings | Network mode with grants and a verified owner; friction log reviewed with Openboard; decisions on what to send upstream. |
 
 M0 to M2 use a short reference clip and a small budget, so mistakes are
 cheap.
@@ -205,16 +252,18 @@ cheap.
 | The video model cannot hold the product's shape or label. | Test gate before the batch; label and text composited in the edit; method chosen per shot. |
 | Provider rules restrict uploads of real people. | Check the endpoint's rules in M2 before any actor reference is uploaded; the brief can specify a generated character. |
 | Provider schemas and prices change. | The gateway reads the live schema and a price table we maintain, and refuses a request it cannot price. |
-| Approvals on the board are plain messages, not signatures. | Bind approvals to a digest of the request, verify the author is a person in the gateway, and keep the provider key away from agents. Revisit when Openboard ships signed approvals. |
+| Approvals on a local board are unverified plain messages. | Accepted while dogfooding. Bind approvals to a digest of the request, accept them only from the owner's handle, and keep the provider key away from agents. Move to network mode in M4; revisit when Openboard ships signed approvals. |
+| Agents talking to agents run away in tokens. | Wait once then park; a question budget per task; advisory roles cannot consult other agents. |
+| A judge is confidently wrong. | Judges only advise; every take reaches the producer; agreement with the producer is measured before a judge is given authority. |
+| Agent sessions share the subscription's rate limits with the owner's own use. | Cap concurrent sessions; record usage per session; a role can move to an API key. |
 | The board has no file attachments. | Files stay on disk; messages carry paths and digests; a local review server shows media. Logged as friction. |
 | Agent output drifts from the schema. | Validate every output; one automatic retry; then the task blocks for a person. |
 
 ## 11. Open questions
 
-1. **Agent runtime credentials.** Agents run on Claude. Do they use an
-   Anthropic API key through the Agent SDK, or headless Claude Code under
-   the existing login? The design supports both; the choice affects cost
-   tracking.
+1. **Other agent runtimes.** Agent roles start on `claude -p` under the
+   subscription, and the video judge on Gemini with an API key. Which
+   other runtimes and judges do we want to try, and for which roles?
 2. **Speech-to-text provider.** The design proposes ElevenLabs Scribe
    through fal.ai, so no new account is needed, with OpenAI as the
    fallback. Confirm after a side-by-side on one reference clip in M1.
@@ -222,6 +271,6 @@ cheap.
    voice, and under what licence?
 4. **Automatic retries.** The first version asks the producer before every
    re-render. Should an approval be able to cover "up to N attempts per
-   shot" once we trust the screening agent?
+   shot" once the judge's agreement with the producer is high enough?
 5. **Where the board runs.** Loopback on the producer's machine at first.
    A LAN address is needed once a worker runs on another machine.
