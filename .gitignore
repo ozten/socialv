@@ -159,3 +159,10 @@ vite.config.ts.timestamp-*
 # User artifacts: production briefs, reference media and run output are never committed
 projects/
 docs/saturday_wash_seedance_workflow.md
+
+# Editor backups and any env file variant: these can hold provider keys
+*~
+.env*
+!.env.example
+*.bak
+*.swp
