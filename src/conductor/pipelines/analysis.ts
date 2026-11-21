@@ -88,7 +88,7 @@ export function analysisPipeline(source = DEFAULT_SOURCE): Pipeline {
         title: "Reference analysis",
         summary:
           "What the system thinks the reference video shows, shot by shot: check the frames against the descriptions. " +
-          "Approve to accept the blueprint; revise with notes to have every shot described again.",
+          "Approve to accept the blueprint. Revise only to correct the description of the reference: it has every shot described again. Direction for the remake belongs to the script stage, not here.",
         rework: ["annotate", "blueprint"],
         items: blueprintItems,
       },
