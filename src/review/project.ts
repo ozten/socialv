@@ -16,11 +16,69 @@ export interface ProjectData {
   probe: Probe | null;
   transcript: Transcript | null;
   blueprint: Blueprint | null;
+  /** The adapted version, scene by scene (`creative/scenes.json`), when it has been written. */
+  adaptation: Adaptation | null;
+  /** Which of the written creative documents exist, as paths under the run folder. */
+  documents: Array<{ label: string; path: string }>;
   /** Dollars the gateway recorded for this run. */
   paidUsd: number;
   /** Dollars of model usage the agent sessions reported. */
   agentUsd: number;
 }
+
+/** One scene of the new video. Hand-written for now, so read leniently. */
+export interface AdaptedScene {
+  shot_id: string;
+  dialogue: string;
+  on_screen_text: string[];
+  setting: string;
+  framing: string;
+  camera: string;
+  action_beats: string[];
+  product: string | null;
+  changes: string;
+  flags: string[];
+}
+export interface Adaptation {
+  title: string;
+  status: string;
+  script: string;
+  scenes: Map<string, AdaptedScene>;
+}
+
+const str = (v: unknown) => (typeof v === "string" ? v : "");
+const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+function adaptationOf(value: unknown): Adaptation | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.scenes)) return null;
+  const scenes = new Map<string, AdaptedScene>();
+  for (const item of raw.scenes as Array<Record<string, unknown>>) {
+    if (!item || typeof item.shot_id !== "string") continue;
+    scenes.set(item.shot_id, {
+      shot_id: item.shot_id,
+      dialogue: str(item.dialogue),
+      on_screen_text: strs(item.on_screen_text),
+      setting: str(item.setting),
+      framing: str(item.framing),
+      camera: str(item.camera),
+      action_beats: strs(item.action_beats),
+      product: typeof item.product === "string" ? item.product : null,
+      changes: str(item.changes),
+      flags: strs(item.flags),
+    });
+  }
+  return { title: str(raw.title), status: str(raw.status), script: str(raw.script), scenes };
+}
+
+const DOCUMENTS = [
+  { label: "Creative director notes", path: "creative/director_notes.md" },
+  { label: "Character sheet", path: "creative/character_sheet.md" },
+  { label: "Claims to verify", path: "creative/claims.md" },
+  { label: "Decisions so far", path: "creative/decisions.md" },
+  { label: "Scenes (JSON)", path: "creative/scenes.json" },
+];
 
 async function json(file: string): Promise<unknown> {
   try {
@@ -63,9 +121,21 @@ export async function loadProject(config: Config, run: string): Promise<ProjectD
     // No agent sessions yet.
   }
 
+  const documents: ProjectData["documents"] = [];
+  for (const doc of DOCUMENTS) {
+    try {
+      await readFile(path.join(dir, doc.path));
+      documents.push(doc);
+    } catch {
+      // Not written yet.
+    }
+  }
+
   return {
     run,
     source,
+    adaptation: adaptationOf(await json(path.join(dir, "creative", "scenes.json"))),
+    documents,
     probe: parsed(Probe, await json(path.join(dir, "analysis", "probe.json"))),
     transcript: parsed(Transcript, await json(path.join(dir, "analysis", "transcript.json"))),
     blueprint: parsed(Blueprint, await json(path.join(dir, "analysis", "blueprint.json"))),
@@ -100,6 +170,11 @@ main { max-width: 72rem; }
 .scene dt { color: var(--muted); }
 .scene dd { margin: 0; overflow-wrap: anywhere; }
 .quote { font-style: italic; }
+.new { border-top: 1px dashed var(--line); margin-top: .75rem; padding-top: .6rem; }
+.new h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin: 0 0 .25rem; }
+.new-script { border-left: 4px solid var(--accent); }
+.flags { margin: .4rem 0 0; padding-left: 1.2rem; font-size: .9rem; color: #b45309; }
+.docs { font-size: .95rem; }
 details.more { font-size: .9rem; color: var(--muted); margin: .25rem 0; }
 .choose { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
 button { font: inherit; padding: .4rem .9rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
@@ -125,6 +200,24 @@ const fmt = (sec: number) => `${sec.toFixed(1)} s`;
 
 function dd(term: string, value: string | null | undefined, cls = ""): string {
   return value ? `<dt>${escapeHtml(term)}</dt><dd${cls ? ` class="${cls}"` : ""}>${escapeHtml(value)}</dd>` : "";
+}
+
+function newVersion(scene: AdaptedScene | undefined): string {
+  if (!scene) return "";
+  return `<div class="new">
+<h3>Our version</h3>
+<ol>${scene.action_beats.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ol>
+<dl>
+${dd("Spoken", scene.dialogue ? `“${scene.dialogue}”` : "nothing", "quote")}
+${dd("On screen", scene.on_screen_text.length ? scene.on_screen_text.map((t) => `“${t}”`).join(", ") : "")}
+${dd("Setting", scene.setting)}
+${dd("Framing", scene.framing)}
+${dd("Camera", scene.camera)}
+${dd("Product", scene.product)}
+${dd("What changed", scene.changes)}
+</dl>
+${scene.flags.length ? `<ul class="flags">${scene.flags.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>` : ""}
+</div>`;
 }
 
 /** The whole page. Everything that came from a file or a model is escaped. */
@@ -173,6 +266,7 @@ ${dd("Product", a.product_interaction)}
 ${dd("Setting", a.environment)}
 </dl>
 ${a.notes ? `<details class="more"><summary>Analyst's notes</summary><p>${escapeHtml(a.notes)}</p></details>` : ""}
+${newVersion(data.adaptation?.scenes.get(shot.shot_id))}
 <div class="choose">
 <button type="button" class="ok">Looks right</button>
 <button type="button" class="fix">Needs a fix</button>
@@ -192,6 +286,17 @@ ${a.notes ? `<details class="more"><summary>Analyst's notes</summary><p>${escape
 <div>
 <h2>What is said</h2>
 <div class="transcript">${data.transcript ? escapeHtml(data.transcript.text || "(no speech)") : `<span class="muted">No transcript yet.</span>`}</div>
+${
+  data.adaptation
+    ? `<h2 style="margin-top:1rem">Our script${data.adaptation.status ? ` <span class="muted">(${escapeHtml(data.adaptation.status)})</span>` : ""}</h2>
+<div class="transcript new-script">${escapeHtml(data.adaptation.script)}</div>`
+    : ""
+}
+${
+  data.documents.length
+    ? `<p class="docs">${data.documents.map((d) => `<a href="${escapeHtml(base + encodePath(d.path))}" target="_blank" rel="noopener">${escapeHtml(d.label)}</a>`).join(" · ")}</p>`
+    : ""
+}
 <p class="muted">Below is what the analysis says each scene of the reference shows. Check each against its clip. Mark it right, or say what to fix; only the scenes you flag are described again. Direction for the new video belongs to the script, which comes next.</p>
 </div>
 </div>
