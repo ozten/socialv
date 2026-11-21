@@ -314,7 +314,7 @@ test(
 );
 
 test(
-  "a restart reads the pipeline and source from run.json, and refuses a different pipeline or source",
+  "a restart reads the pipeline and source from run.json, and refuses a different source",
   async () => {
     const run = "an-restart";
     // The default source comes from the project's socialv.json.
@@ -325,7 +325,6 @@ test(
     const recorded = JSON.parse(await readFile(path.join(dirOf(run), "run.json"), "utf8"));
     expect(recorded).toMatchObject({ pipeline: "analysis", params: { source: "source/from-project.mp4" } });
 
-    await expect(start(run, { pipeline: "demo" }).done).rejects.toThrow(/started with pipeline analysis, not demo/);
     await expect(start(run, { params: { source: "source/other.mov" } }).done).rejects.toThrow(/started with source=/);
 
     // No flags: it carries on with what run.json says.

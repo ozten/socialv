@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import { Blueprint, Probe, ShotAnnotation, Shots, Transcript } from "../schemas/analysis.ts";
+import { Envelopes, Take } from "../schemas/render.ts";
 
 interface OutputSchema {
   schema: z.ZodTypeAny;
@@ -26,6 +27,8 @@ const SCHEMAS: Record<string, OutputSchema> = {
       '"environment": string, "on_screen_text": string[], "notes": string or null}',
   },
   "Blueprint@1": { schema: Blueprint, hint: "Blueprint@1: see src/schemas/analysis.ts" },
+  "Envelopes@1": { schema: Envelopes, hint: "Envelopes@1: see src/schemas/render.ts" },
+  "Take@1": { schema: Take, hint: "Take@1: see src/schemas/render.ts" },
 };
 
 export function getSchema(name: string): OutputSchema | undefined {

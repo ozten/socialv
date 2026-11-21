@@ -183,7 +183,7 @@ test("an action over the auto-approve threshold is refused: it needs a gate", as
   await writeProbe(tb, "big", 3600); // an hour: up to $1.80
   const task = await createSpendTask(tb, "big");
   expect((await claimAndStep(tb, "gateway", task.id)).code).toBe(1);
-  expect((await taskOf(tb, task.id)).task?.reason).toMatch(/needs an approval gate \(not built yet\)/);
+  expect((await taskOf(tb, task.id)).task?.reason).toMatch(/this operation has no approval gate/);
   expect(ledgerRow(tb, "big", actionIdFor(task.id, "transcribe"))).toBeUndefined();
   expect(submits).toHaveLength(0);
   expect(await readFile(costLogPath(runDir(configOf(tb), "big")), "utf8")).toMatch(/,refused,/);

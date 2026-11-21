@@ -7,6 +7,7 @@ import { connect } from "../../board/connect.ts";
 import { GATEWAY } from "../../channels.ts";
 import type { CrashHooks } from "../../gateway/action.ts";
 import { boardNotifier } from "../../gateway/notify.ts";
+import { render, RenderParams } from "../../gateway/render.ts";
 import { transcribe } from "../../gateway/transcribe.ts";
 import type { ToolRole } from "../types.ts";
 
@@ -39,8 +40,10 @@ export const gateway: ToolRole = {
         const params = TranscribeParams.parse(brief.params);
         return transcribe(gw, await readInput(0), { endpoint: params.endpoint });
       }
+      case "render":
+        return render(gw, me, await readInput(0), RenderParams.parse(brief.params));
       default:
-        throw new Error(`gateway: unknown op ${JSON.stringify(op)} (expected "transcribe")`);
+        throw new Error(`gateway: unknown op ${JSON.stringify(op)} (expected "transcribe" or "render")`);
     }
   },
 };

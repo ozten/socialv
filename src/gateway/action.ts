@@ -1,6 +1,6 @@
 // The one path every paid call takes (design 7):
 //
-//   load → (verify approval: M2) → budget check → consume → submit → record → wait → save
+//   load → verify approval (over the auto-approve limit) → budget check → consume → submit → record → wait → save
 //
 // An action is identified by its task and operation, so a re-run of the same
 // task finds the same ledger row and never submits twice.
@@ -66,6 +66,14 @@ export interface PaidRequest {
   /** What the price table needs to estimate the request. */
   basis: PriceBasis;
   provider: QueueProvider;
+  /** The action's ID when it is fixed before the task exists (an envelope's). Default: from the task and operation. */
+  actionId?: string;
+  /**
+   * Checks that the owner approved exactly this request, for one over the
+   * auto-approve limit. Throws GatewayRefusal when they did not. Returns a
+   * line naming the approval, for the cost log.
+   */
+  approval?: () => Promise<string>;
 }
 
 export interface PaidOutcome {
@@ -102,7 +110,7 @@ export function canonicalJson(value: unknown): string {
 
 export async function runPaidAction(ctx: GatewayContext, req: PaidRequest): Promise<PaidOutcome> {
   const { config, run, runDir, taskId } = ctx;
-  const actionId = actionIdFor(taskId, req.operation);
+  const actionId = req.actionId ?? actionIdFor(taskId, req.operation);
   const base = { run, task_id: taskId, action_id: actionId, operation: req.operation, endpoint: req.endpoint };
   const log = (line: Omit<CostLogLine, keyof typeof base>) => appendCostLog(runDir, { ...base, ...line });
   const refuse = (reason: string, est?: Estimate): never => {
@@ -133,13 +141,23 @@ export async function runPaidAction(ctx: GatewayContext, req: PaidRequest): Prom
 
     const budget = readBudget(config.projectDir);
     if (est.max_cost_usd > budget.auto_approve_usd) {
-      refuse(
-        `${req.operation} on ${req.endpoint} may cost up to $${est.max_cost_usd.toFixed(4)}, over the auto-approve limit ` +
-          `of $${budget.auto_approve_usd.toFixed(2)}: it needs an approval gate (not built yet)`,
-        est,
-      );
+      if (!req.approval) {
+        refuse(
+          `${req.operation} on ${req.endpoint} may cost up to $${est.max_cost_usd.toFixed(4)}, over the auto-approve limit ` +
+            `of $${budget.auto_approve_usd.toFixed(2)}, and this operation has no approval gate`,
+          est,
+        );
+      }
+      // The owner's approval of this action and digest, read from the gate thread (design 7, step 2).
+      let approvedBy: string;
+      try {
+        approvedBy = await req.approval!();
+      } catch (error) {
+        if (!(error instanceof GatewayRefusal)) throw error;
+        return refuse(`not approved: ${error.message}`, est);
+      }
+      log({ event: "approved", estimated_usd: est.estimated_usd, max_cost_usd: est.max_cost_usd, note: approvedBy });
     }
-    // M2: verify the owner's approval of this action_id and digest on the gate thread here.
 
     req.provider.ready();
 

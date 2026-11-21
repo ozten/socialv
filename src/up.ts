@@ -183,6 +183,8 @@ export interface UpOptions {
   pipeline?: string;
   /** Passed to the conductor: the reference video, for the analysis pipeline. */
   source?: string;
+  /** Passed to the conductor: the render plan's name, for the render pipeline. */
+  plan?: string;
   signal?: AbortSignal;
   /** The socialv launcher to run children with. Defaults to this checkout's bin/socialv. */
   bin?: string;
@@ -315,10 +317,11 @@ export async function runUp(config: Config, opts: UpOptions): Promise<number> {
 }
 
 /** The conductor's command line: the run, and the pipeline options given to `up`. */
-export function conductorArgs(opts: Pick<UpOptions, "run" | "pipeline" | "source">): string[] {
+export function conductorArgs(opts: Pick<UpOptions, "run" | "pipeline" | "source" | "plan">): string[] {
   const args = ["conductor", "--run", opts.run];
   if (opts.pipeline !== undefined) args.push("--pipeline", opts.pipeline);
   if (opts.source !== undefined) args.push("--source", opts.source);
+  if (opts.plan !== undefined) args.push("--plan", opts.plan);
   return args;
 }
 

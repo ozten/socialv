@@ -42,18 +42,19 @@ const pipelineOptions = {
   run: { type: "string" },
   pipeline: { type: "string" },
   source: { type: "string" },
+  plan: { type: "string" },
 } as const satisfies Options;
 
 const COMMANDS: Record<string, Command> = {
   up: {
-    usage: `Usage: socialv up --run <id> [--pipeline <name>] [--source <path>]
+    usage: `Usage: socialv up --run <id> [--pipeline <name>] [--source <path>] [--plan <name>]
 
 Starts a local board at BOARD_URL if none answers there (data in
 <project>/.board; an already-running board is left alone), the review server,
 a worker for every tool and agent role, a mention loop for every advisory role,
 and the conductor for the run. Each runs as a child process with its output
 prefixed; workers that exit are restarted. Ctrl-C stops everything.
-Exits with the conductor's code. --pipeline and --source are passed to the
+Exits with the conductor's code. --pipeline, --source and --plan are passed to the
 conductor; see \`socialv conductor --help\`.
 `,
     options: { ...help, ...pipelineOptions },
@@ -62,20 +63,23 @@ conductor; see \`socialv conductor --help\`.
     async run(config, values, _p, signal) {
       const run = required(values, "run");
       const { runUp } = await import("./up.ts");
-      return runUp(config, { run, pipeline: optional(values, "pipeline"), source: optional(values, "source"), signal });
+      return runUp(config, { run, pipeline: optional(values, "pipeline"), source: optional(values, "source"), plan: optional(values, "plan"), signal });
     },
   },
   conductor: {
-    usage: `Usage: socialv conductor --run <id> [--pipeline <name>] [--source <path>]
+    usage: `Usage: socialv conductor --run <id> [--pipeline <name>] [--source <path>] [--plan <name>]
 
 Runs a pipeline for one run. The first start records the pipeline and its
-parameters in <project>/runs/<id>/run.json; a restart reads them from there,
-needs neither flag, and refuses a different pipeline or source.
+parameters in <project>/runs/<id>/run.json; a restart reads them from there
+and needs no flag (it continues the run's latest job). Naming another
+pipeline starts a further job on the same run.
 
-  --pipeline <name>   demo (the default) or analysis
+  --pipeline <name>   demo (the default), analysis or render
   --source <path>     analysis only: the reference video, relative to the
                       project folder. Default: \`source\` in the project's
                       socialv.json, else source/original.mov
+  --plan <name>       render only: the plan in the run folder at
+                      renders/<name>/plan.json. A run can have many.
 
 Exit codes: 0 completed, 3 rejected, 130/143 stopped by SIGINT/SIGTERM.
 `,
@@ -88,7 +92,7 @@ Exit codes: 0 completed, 3 rejected, 130/143 stopped by SIGINT/SIGTERM.
       const outcome = await runConductor(config, {
         run,
         pipeline: optional(values, "pipeline"),
-        params: { source: optional(values, "source") },
+        params: { source: optional(values, "source"), plan: optional(values, "plan") },
         signal,
       });
       if (outcome === "completed") return 0;

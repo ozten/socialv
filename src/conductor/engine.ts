@@ -746,7 +746,7 @@ export class RunDriver {
   // ----- Posting ---------------------------------------------------------------
 
   private status(key: string, text: string): Promise<void> {
-    return this.postOnce(statusChannel(this.run), `${this.run}-status-${key}`, text);
+    return this.postOnce(statusChannel(this.run), `${this.run}-status-${this.pipeline.job ? `${this.pipeline.job}-` : ""}${key}`, text);
   }
 
   private postOnce(channel: string, key: string, text: string): Promise<void> {

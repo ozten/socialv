@@ -75,6 +75,8 @@ export type PipelineNode = StageNode | GateNode;
  */
 export interface Pipeline {
   name: string;
+  /** Set when a run can have several jobs: keeps this job's status lines apart from the others'. */
+  job?: string;
   nodes: PipelineNode[];
 }
 

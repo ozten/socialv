@@ -6,6 +6,7 @@ import { creativeDirector } from "./agents/creative-director/index.ts";
 import { toyDirector } from "./agents/toy-director/index.ts";
 import { toyWriter } from "./agents/toy-writer/index.ts";
 import { echo } from "./tools/echo.ts";
+import { envelopes } from "./tools/envelopes.ts";
 import { gateway } from "./tools/gateway.ts";
 import { blueprint } from "./tools/blueprint.ts";
 import { probe } from "./tools/probe.ts";
@@ -25,7 +26,7 @@ export interface RoleInfo {
   channel?: string;
 }
 
-const ROLES: Role[] = [echo, probe, shots, blueprint, toyWriter, toyDirector, gateway, annotator, creativeDirector];
+const ROLES: Role[] = [echo, probe, shots, blueprint, envelopes, toyWriter, toyDirector, gateway, annotator, creativeDirector];
 
 /** Every role this build knows, for `socialv up` to start. */
 export function listRoles(): RoleInfo[] {

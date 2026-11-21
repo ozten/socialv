@@ -12,6 +12,10 @@ export interface Estimate {
 export interface PriceBasis {
   /** Seconds of audio, for per-minute endpoints. */
   audio_sec?: number;
+  /** Seconds of video generated, for per-second endpoints. */
+  video_sec?: number;
+  /** Output resolution, for endpoints priced by it. */
+  resolution?: string;
 }
 
 interface Price {
@@ -36,12 +40,45 @@ function perAudioMinute(usdPerMinute: number): Price {
   };
 }
 
+/**
+ * Video priced per generated second, by resolution. The provider calls its
+ * figures rough, so the ceiling adds a margin. Requests with video inputs are
+ * billed differently and must not be priced with this.
+ */
+function perVideoSecond(usdPerSecond: Record<string, number>, margin = 1.1): Price {
+  return {
+    rate: Object.entries(usdPerSecond)
+      .map(([res, usd]) => `$${usd}/s at ${res}`)
+      .join(", "),
+    estimate({ video_sec, resolution }) {
+      const rate = resolution === undefined ? undefined : usdPerSecond[resolution];
+      if (rate === undefined) {
+        throw new UnpricedError(`no price for resolution ${JSON.stringify(resolution)}; priced: ${Object.keys(usdPerSecond).join(", ")}`);
+      }
+      if (video_sec === undefined || !(video_sec > 0)) {
+        throw new UnpricedError("a per-second price needs the video duration");
+      }
+      return { estimated_usd: round(video_sec * rate), max_cost_usd: round(video_sec * rate * margin) };
+    },
+  };
+}
+
 export const SPEECH_TO_TEXT = "fal-ai/elevenlabs/speech-to-text";
+export const SEEDANCE_REFERENCE = "bytedance/seedance-2.5/reference-to-video";
+export const SEEDANCE_IMAGE = "bytedance/seedance-2.5/image-to-video";
+
+// https://fal.ai/models/bytedance/seedance-2.5/reference-to-video/llms.txt and
+// .../image-to-video/llms.txt, read 2026-11-21: "For 480p ... roughly $0.2205
+// per second of generated video, for 720p roughly $0.4730". Audio is included.
+// Only 720p is listed: all video is generated at 720p (design 8).
+const SEEDANCE = perVideoSecond({ "720p": 0.473 });
 
 const PRICES: Record<string, Price> = {
   // https://fal.ai/models/fal-ai/elevenlabs/speech-to-text/llms.txt, read 2026-11-20:
   // "Price: $0.03 per minutes". Another source said $0.008/min; the live page settles it.
   [SPEECH_TO_TEXT]: perAudioMinute(0.03),
+  [SEEDANCE_REFERENCE]: SEEDANCE,
+  [SEEDANCE_IMAGE]: SEEDANCE,
 };
 
 export class UnpricedError extends Error {}
