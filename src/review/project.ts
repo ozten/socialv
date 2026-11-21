@@ -75,6 +75,7 @@ function adaptationOf(value: unknown): Adaptation | null {
 const DOCUMENTS = [
   { label: "Creative director notes", path: "creative/director_notes.md" },
   { label: "Presenter sheet (image)", path: "creative/presenter_sheet.png" },
+  { label: "Bottle reference (image)", path: "creative/bottle_reference.png" },
   { label: "Character sheet", path: "creative/character_sheet.md" },
   { label: "Claims to verify", path: "creative/claims.md" },
   { label: "Decisions so far", path: "creative/decisions.md" },
