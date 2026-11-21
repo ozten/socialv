@@ -440,42 +440,60 @@ process, so every worker is written to tolerate running twice.
 Nobody spends tokens while a gate is open: the conductor is in a long-poll
 and no agent session exists.
 
-### 6.2 Review pages and the run overview
+### 6.2 The app
 
-The board's page is where decisions are made and recorded. Our own pages
-exist for three things it cannot do, and no more.
+The producer's interface is socialv's own web app (PRD section 5). It is
+organised around projects and two tasks, import and render. The board's
+page stays the place to read and join conversations.
 
-- **Show media.** Each gate has a page with its items: keyframes, video
-  takes, scorecards, text. Built in M0 as a static page.
-- **Compose a decision.** From the take-review gate on, the page has
-  controls per item: select a take, retry with notes, drop. It builds the
-  exact reply text (`approve 1,3`, or a per-shot list), with a copy button
-  and a link straight to the gate's thread. The owner pastes and sends it
-  on the board.
-- **Summarise a run.** One page per run: the stages and where each stands,
-  what is waiting on the owner with links to those threads, and spend
-  against the run and day caps. It is generated from the board's task list
-  and the gateway's ledger.
+**Shape.** One local server, bound to `127.0.0.1`, replacing the review
+server. It serves a small single-page app and a JSON API over the project
+folders.
 
-Rules that keep this from growing into a second interface:
+| Page | Shows | Actions |
+|---|---|---|
+| Home | Project tiles under Active and Archive | Import a video; move a project between the groups |
+| Project | Input video, artifacts, scenes, outputs, gold, spend | Edit or request a change to an artifact; start a render |
+| Scene | Reference scene, storyboard entry, prompt, versions with scorecards | Approve the cost; pick a version; re-render with notes; drop |
+| Cut | The assembled piece | Accept; send scenes back; mark gold |
 
-- **Our pages never post a decision.** An approval counts because the board
-  verifies the owner's browser session. A page served by socialv cannot use
-  that session, so anything it posted would come from the `socialv` agent
-  and the owner check would mean nothing.
-- **Read-only.** The pages read the run folder, the board and the ledger.
-  They change none of them. Choices made on a page live in the browser
-  until the owner sends the reply.
-- **No conversations.** Threads, questions, alerts and history are read on
-  the board. The pages link to them.
-- **If pasting proves clumsy** after the first real take review, the next
-  step is a one-click confirm on the board, for example the owner's
-  reaction on a decision the page drafted there, not approvals moved off
-  the board.
+**How the app and the board relate.** The app never does work itself. Each
+action becomes a message on the board, and the conductor and workers act on
+the board as they do now.
 
-Each of these stands in for something Openboard plans (attachments,
-approval tasks) or could add (task actions for people, a run view). When
-one ships, the matching page goes.
+- **Import** and **render** each start a run: a pipeline of tasks on the
+  board, as in section 8. A project has one import run and any number of
+  render runs.
+- **A decision** in the app (approve a cost, pick a version, re-render,
+  accept) is posted by the app's server as a reply in the gate's thread, in
+  the same typed form the gate already parses. The conductor and the
+  gateway read it from the board, never from the app.
+- **A change request** to an artifact is posted in that artifact's task
+  thread and reopens the task for the role that owns it.
+- **State shown in the app** is read from the project folder, the board's
+  task list and the gateway's ledger. The app keeps no database of its own
+  beyond a small index of projects.
+
+**Who a decision comes from.** The app's server posts as the profile
+`studio` under our login, and each post says it was made by the producer in
+the app. The gate accepts a decision from the owner's handle or from
+`studio`. This is trust by location: the server listens only on the
+producer's machine, so whoever uses it is taken to be the producer. It is
+the same trust the local board gave us, and it is weaker than a board
+session. When Openboard has approval tasks and a way for an app to act for
+a signed-in person, the app uses that and the `studio` exception goes.
+
+**What the app must not become.**
+
+- **Not a second record.** Anything that matters is on the board or in the
+  project folder. Deleting the app's index loses nothing.
+- **Not a chat.** It links to threads on the board.
+- **Not a way round the gateway.** A click on "approve" posts an approval;
+  the gateway still checks it against the exact request before spending.
+
+**Vocabulary.** The app says project, scene, version, output and gold. The
+code underneath keeps run, shot and take until it is worth renaming; the
+API translates.
 
 ### 6.3 The gates in a run
 
@@ -741,9 +759,10 @@ and who decided.
 |---|---|
 | **M0** | Repository scaffold. A local board. `board/`, `socialv step` under `openboard tasks run` with the `claude -p` runtime, and a conductor with a three-stage fake pipeline and one gate. Two toy agent roles where one asks the other a question. Review server with a placeholder page. Exit: the gate round-trip from the browser; the question answered in the thread; an hour idle with zero model calls. |
 | **M1** | Tool workers for probe, scenes and blueprint. Gateway skeleton with ledger and budget, used first for transcription. Annotator and creative-director roles. Review page for the blueprint. Transcriber comparison. |
-| **M2** | Script-writer and prompt-writer roles. Envelopes, spend gates, full gateway verification and its test suite. fal adapter from the live schema; price table. One test segment rendered by reference-to-video and by image-to-video. The Gemini video judge, scoring both. Test review page with scorecards. |
-| **M3** | Per-shot fan-out, judging every take, take review with retries on a page that composes the decision, the run overview page, voiceover, assembly, final gate, packaging. Judge calibration report. |
-| **M4** | Network mode with grants and a real owner identity. A worker on a second machine. Friction log review and upstream issues. |
+| **M2** | The Saturday House video. Script-writer and prompt-writer roles, storyboard and character sheet, envelopes and spend gates, the fal adapter at 720p, one test scene, then every scene, voiceover, assembly, gold. Steps not yet built are done by hand and written down. A video judge scores versions. |
+| **M3** | The app: project index, home with Active and Archive, import, project page, artifact view and edit. The project folder layout of section 9 moves from runs to projects with import and render runs inside. |
+| **M4** | Scene and cut pages with decisions posted through `studio`; render scene by scene and re-render with notes; artifact change requests that reopen tasks; the hand steps of M2 turned into roles. A second video made entirely through the app. |
+| **M5** | Network mode with grants and a real owner identity. A worker on a second machine. Friction log review and upstream issues. |
 
 ## 13. Decisions to confirm
 
@@ -752,8 +771,8 @@ and who decided.
    advisory role cannot ask another agent (section 4.3).
 3. Judges advise and never select or spend, until calibration says
    otherwise (section 4.4).
-4. Typed replies as the approval interface until the board has approval
-   controls (section 6.1).
+4. Decisions made in our app and posted to the board as typed replies by
+   the `studio` profile, trusted because the app is local (section 6.2).
 5. Every re-render needs a new approval in the first version (PRD open
    question 4).
 6. Speech-to-text through fal rather than a new provider (section 8).

@@ -4,19 +4,25 @@
 
 ## 1. Summary
 
-socialv turns a **production brief** and a **reference video** into a finished
-vertical social video. A team of agents does the analysis, writing, prompt
-construction and editing. A person approves every expensive step before it
-runs and reviews its output afterwards. The agents and the person coordinate
-through an [Openboard](https://openboard.lol) board.
+socialv turns a **reference video** and a **production brief** into a new
+vertical social video made with generative AI. A person works in a small
+web app built around two tasks: **import** a video into a project, and
+**render** the project, scene by scene. A team of agents does the analysis,
+writing, prompt construction and editing behind those tasks. The person
+approves every expensive step before it runs and reviews its output
+afterwards. The agents coordinate through an
+[Openboard](https://openboard.lol) board.
 
-The project has two goals of equal weight:
+The project has three goals:
 
-1. **Dogfood Openboard.** Run a real multi-agent workflow with human approval
-   gates on it, and record what works and what hurts.
-2. **Automate social video production.** Take a workflow that today is a long
-   manual checklist and make it a repeatable run that a person steers from a
-   browser.
+1. **Make one real video, somewhat by hand.** Produce a social video for
+   Saturday House, doing by hand whatever is not built yet, so that we learn
+   the workflow from a real job rather than from a plan.
+2. **Codify that workflow into a lasting agent swarm.** Turn what we did
+   into socialv: an app and a set of agents that make social videos with
+   generative AI, for any brand, repeatably.
+3. **Dogfood Openboard.** Use it as the backbone for the swarm and its
+   orchestration, and record what works and what hurts.
 
 ## 2. Guiding principle
 
@@ -52,45 +58,97 @@ repository and is never committed to it.
 The system is generic. Nothing in the code names a brand, a product or a
 setting. Those come from the brief.
 
-## 5. The run, from the producer's side
+## 5. The product: projects, import and render
 
-1. The producer starts a run for a project, from the command line or by
-   posting in the board's intake channel.
-2. Agents analyse the reference: transcript with timings, shot list,
-   keyframes, a description of each shot. No approval is needed; this costs
-   cents.
-3. Agents adapt the creative: a new script, a replacement map per shot, and
-   a list of claims that need substantiation.
-4. **Gate: creative approval.** The producer reads the script, the map and
-   the flagged claims, and approves, asks for changes or rejects.
-5. Agents prepare reference assets and write a prompt per shot.
-6. **Gate: test spend.** The producer sees one short test segment, the exact
-   requests that would be sent, and the estimated cost. They approve.
-7. The gateway renders the test candidates.
-8. **Gate: test review.** The producer compares the candidates and chooses a
-   generation method per shot.
-9. **Gate: batch spend.** The producer sees every shot's request and the
-   total estimate, and approves all or some.
-10. The gateway renders the approved shots. A judge scores each take
-    against the brief's checklist and writes a scorecard.
-11. **Gate: take review.** For each shot the producer selects a take, asks
-    for a retry with notes, or drops the shot. A retry is new spending and
-    returns to step 9 for that shot.
-12. Agents produce the voiceover, captions and the assembled cut.
-13. **Gate: final review.** The producer approves the cut or sends it back.
-14. The system packages the deliverables: the video, the manifests and the
-    cost log. The producer uploads the video by hand.
+The producer works in socialv's own web app. It is organised around tasks,
+not around channels or pipelines.
 
-The producer does all of this from the board's web page and the review
-pages it links to. They are mentioned when a gate opens, and nothing
-proceeds past a gate until they answer.
+### Home
 
-Between gates the agents work in the open. Each task has a thread on the
-board where its agent posts progress. Agents ask each other questions
-there: the script writer asks the creative director whether a line fits the
-brand voice, and the answer appears in the same thread. The producer can
-read any thread, answer a question themselves, or mention an agent to
-redirect it.
+A grid of project tiles in two groups, **Active** and **Archive**. A tile
+shows the project's name, a frame from its video and where it stands. A
+project can be moved between the two groups at any time. Importing a video
+creates a new project in Active.
+
+### Import a video into a project
+
+The producer picks a reference video and gives the brief: what to make and
+what replaces what. Import analyses the video and produces the project's
+working artifacts:
+
+- **Analysis** of the reference: transcript with timings, scenes, keyframes
+  and a description of each scene.
+- **Script**: the new dialogue and on-screen text, scene by scene.
+- **Creative director notes**: the look, the tone, the rules for this video
+  and every ruling made along the way.
+- **Storyboard**: for each scene, what is shown and how it is filmed, beside
+  the reference frames it replaces.
+- **Character sheet**: who appears, how they look, and the reference images
+  that keep them consistent.
+- **Project settings**: the voice (for example an ElevenLabs voice), the
+  aspect ratio, the budget, the product and brand assets.
+
+Import costs cents and needs no approval before it runs.
+
+### Iterate on the artifacts
+
+Every artifact can be read and changed before anything is rendered. The
+producer edits it directly or asks for a change in words ("make the opening
+line shorter", "she should wear a navy jacket"), and the agent that owns
+the artifact revises it. Changes to one artifact flow to the ones that
+depend on it: a script change updates the storyboard for that scene.
+
+### Render the project, scene by scene
+
+Rendering produces a new 720p video. It is the expensive part, so it is
+done one scene at a time, with the cost shown and approved before anything
+is sent.
+
+- The producer renders one scene, several, or all of them.
+- Each render of a scene is a **version**. A scene can be rendered again as
+  often as the producer asks, with or without notes. Earlier versions are
+  kept.
+- **Review a scene:** watch its versions beside the reference scene, with a
+  judge's scorecard, then pick one, ask for another with changes, or drop
+  the scene.
+- **Review the whole piece:** the picked versions edited together with the
+  voiceover and captions, watched as one video. The producer accepts it or
+  sends scenes back.
+- A project can be rendered to a full video more than once. Each full video
+  is kept as an output.
+
+### What a project keeps
+
+- Its input video.
+- Its artifacts, with their history.
+- Every scene version and every output video.
+- The one output chosen as **gold**: the final video.
+- What was spent, request by request.
+
+### Where the board fits
+
+The app is how the producer does the work. The board is how the agents do
+theirs, and the record of what happened. Every import and render is a set
+of tasks on the board; every agent question, every approval and every paid
+request is a message there. The app shows a link from any scene or artifact
+to its thread, and the producer can read or join any conversation on the
+board. Nothing in the app happens without a matching record on the board.
+
+### The order of work underneath
+
+1. Analyse the reference. No approval needed.
+2. Adapt the creative: script, notes, storyboard, character sheet, and a
+   list of claims that need substantiation.
+3. **Approval: creative.** The producer accepts the artifacts or changes them.
+4. Prepare reference assets and write a prompt per scene.
+5. **Approval: spend.** The producer sees the exact requests and the
+   estimated cost for the scenes they asked to render.
+6. The gateway renders the approved scenes. A judge scores each version.
+7. **Review: scenes.** Pick, re-render with notes, or drop. A re-render is
+   new spending and returns to step 5 for that scene.
+8. Produce the voiceover and captions, and assemble the cut.
+9. **Review: the whole piece.** Accept it, or send scenes back.
+10. Mark an output as gold. The producer uploads it by hand.
 
 ## 6. Requirements
 
@@ -141,76 +199,33 @@ redirect it.
 - **H3.** A gate can be approved in part ("shots 1, 3 and 4").
 - **H4.** A gate left unanswered costs nothing. No process spends tokens
   while it waits.
-- **H5.** A review page lets the producer make each choice by clicking: per
-  shot, select a take, ask for a retry with notes, or drop it. The page
-  builds the exact reply and links to the thread. The producer sends the
-  reply on the board themselves, because only the board can verify that a
-  decision came from them. Our pages never post a decision.
-- **H6.** One page shows a run at a glance: the stage it is at, what is
-  waiting on the producer with links to those threads, and spend against
-  the caps.
+- **H5.** The producer makes every decision in the app by clicking: approve
+  a cost, pick a version, ask for a re-render with notes, drop a scene,
+  accept the cut, mark gold. The app records each decision on the board, in
+  the thread it belongs to, before anything acts on it.
+- **H6.** The app shows a project at a glance: which artifacts exist, each
+  scene's state, what is waiting on the producer, and spend against the
+  caps.
 
-### 6.4 Agents that talk to each other
+### 6.3a The app
 
-- **A1.** An agent can ask another agent role a question in its task's
-  thread and receive the answer in the same session when the answer is
-  quick.
-- **A2.** A question that is not answered quickly parks the task at no
-  cost; the task resumes with its context when the answer arrives.
-- **A3.** An advisory role, the creative director, holds the brief's intent
-  and answers such questions consistently across a run. Its rulings are
-  written to a decision log.
-- **A4.** Conversations are bounded: a limit on questions per task, and
-  advisory roles do not consult other agents.
-- **A5.** The owner can read every conversation, answer in place of an
-  agent, and address any agent by mention.
-
-### 6.5 Judges
-
-- **J1.** Every rendered take is scored by at least one multimodal judge
-  that watches the video itself. The first is Gemini.
-- **J2.** A scorecard has pass or fail checks and 1 to 5 scores, each with
-  evidence, built from the brief's quality checklist.
-- **J3.** Judges advise. They do not select takes or cause spending. The
-  owner sees every take, ordered by score.
-- **J4.** The owner's decisions are logged against the scores, so that we
-  can measure how often a judge agrees with the owner.
-- **J5.** Adding a judge, for video or for another artifact such as the
-  script, needs no change to the pipeline.
-
-### 6.6 Truthfulness and rights
-
-- **T1.** The adaptation stage flags every product claim and checks it
-  against the claims sheet. Unsupported claims block creative approval until
-  the producer resolves them.
-- **T2.** Source audio, music, watermarks and branding from the reference
-  are never carried into the output.
-- **T3.** Before a real person's likeness is uploaded to a provider, the
-  gate packet says so and names the reference files.
-
-### 6.7 Dogfooding Openboard
-
-- **D1.** All coordination between processes goes through the board: work
-  hand-off, questions, approvals, status. No side channel.
-- **D2.** We start on a local board, for speed. Channels are laid out so
-  that a later move to network mode with grants needs no renaming.
-- **D3.** A friction log records every place the board made something hard,
-  with what we did instead. It is reviewed at the end of each milestone.
-- **D4.** Agents use the `openboard` CLI and skill themselves. For each
-  task we record board commands run, which failed and why, and tokens
-  spent, as evidence of how the agent-facing surface holds up.
-
-### 6.8 Efficiency
-
-- **E1.** No language model is invoked to poll or check status. An agent
-  may wait once, briefly, for an answer to its own question.
-- **E4.** Agent roles run on `claude -p` under the owner's subscription by
-  default. Other runtimes and models plug in per role, with their own
-  keys.
-- **E2.** Deterministic work (probing, scene detection, transcription,
-  rendering, editing) is code, not an agent.
-- **E3.** An agent session starts with the brief and pointers to files, not
-  a replay of board history.
+- **U1.** The home page lists projects as tiles under Active and Archive.
+  A project can be moved between them.
+- **U2.** Importing a video creates an Active project and starts its
+  analysis and first artifacts.
+- **U3.** A project page shows the input video, each artifact, the scenes,
+  the outputs and the gold video.
+- **U4.** Any artifact can be edited directly or revised by request, and
+  its earlier states can be seen.
+- **U5.** Scenes are rendered one at a time or in a chosen set. Each render
+  is kept as a version of its scene.
+- **U6.** A scene's versions can be watched beside the reference scene.
+- **U7.** The assembled piece can be watched as a whole, and rendered more
+  than once.
+- **U8.** One output can be marked gold; the mark can be moved.
+- **U9.** All video is generated at 720p.
+- **U10.** The app runs on the producer's machine and is reachable only
+  from it.
 
 ## 7. Not in scope for the first version
 
@@ -219,11 +234,11 @@ redirect it.
 - Verified identities and per-agent permissions on the board. They arrive
   with network mode, after the first full run.
 - Judges with authority to select takes or trigger retries.
-- An interface that replaces the board. Our pages cover what the board
-  cannot show or summarise: media review, composing a decision, and a run
-  overview. They read from the board and the run folder and write to
-  neither. Conversations, questions, alerts and every decision stay on the
-  board.
+- A second place for conversations. The app has no chat of its own; agent
+  questions and answers stay on the board, and the app links to them.
+- A video editor. The app reviews and re-renders scenes; it does not trim,
+  reorder or grade footage by hand.
+- Accounts, sharing and several producers in the app.
 - Video providers other than fal.ai, and models other than Seedance 2.5.
 - Lip-sync passes, music generation, and automatic A/B testing of creative.
 - Cloud deployment. Everything runs on the producer's machine, with the
@@ -247,14 +262,14 @@ redirect it.
 
 | # | Name | Done when |
 |---|---|---|
-| M0 | Board and skeleton | A fake pipeline runs on a local board; one agent asks another a question and gets an answer in the thread; a gate is approved from the browser; idle processes spend no tokens. |
-| M1 | Analysis | A reference video becomes a transcript, shot list, keyframes and annotated blueprint that the producer finds accurate. |
-| M2 | Adaptation and one test render | Creative approval, then one approved test segment rendered two ways through the gateway, scored by the video judge, reviewed, and a method chosen. |
-| M3 | Full run | Every shot rendered, judged and reviewed on a page where choices are clicked, the cut assembled, the final gate passed, deliverables packaged. A run overview page. |
-| M4 | Learnings | Network mode with grants and a verified owner; friction log reviewed with Openboard; decisions on what to send upstream. |
+| M0 | Board and skeleton (done) | A fake pipeline runs on a board; one agent asks another a question and gets an answer in the thread; a gate is approved from the browser; idle processes spend no tokens. |
+| M1 | Analysis (done) | A reference video becomes a transcript, scene list, keyframes and annotated blueprint that the producer finds accurate. |
+| M2 | The Saturday House video, by hand where needed | The first real video exists: script, notes, storyboard and character sheet written; one scene test-rendered and reviewed; every scene rendered at 720p through the gateway; the cut assembled; a gold video chosen. Each step that was done by hand is written down as a step to codify. |
+| M3 | The app, on the project model | Home with Active and Archive tiles; import creates a project and its artifacts; a project page shows artifacts, scenes, versions, outputs and gold. Built against the Saturday House project's real files. |
+| M4 | The swarm does it | Import and render run end to end from the app for a second video, with agents doing every step that M2 did by hand, a judge scoring versions, and decisions recorded on the board. |
+| M5 | Learnings | Network mode with grants and a verified owner; friction log reviewed with Openboard; decisions on what to send upstream. |
 
-M0 to M2 use a short reference clip and a small budget, so mistakes are
-cheap.
+M2 starts with one test scene and a small budget, so mistakes are cheap.
 
 ## 10. Risks
 
