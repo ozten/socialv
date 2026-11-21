@@ -207,7 +207,7 @@ board. Nothing in the app happens without a matching record on the board.
   scene's state, what is waiting on the producer, and spend against the
   caps.
 
-### 6.3a The app
+### 6.4 The app
 
 - **U1.** The home page lists projects as tiles under Active and Archive.
   A project can be moved between them.
@@ -282,7 +282,7 @@ M2 starts with one test scene and a small budget, so mistakes are cheap.
 | Agents talking to agents run away in tokens. | Wait once then park; a question budget per task; advisory roles cannot consult other agents. |
 | A judge is confidently wrong. | Judges only advise; every take reaches the producer; agreement with the producer is measured before a judge is given authority. |
 | Agent sessions share the subscription's rate limits with the owner's own use. | Cap concurrent sessions; record usage per session; a role can move to an API key. |
-| The board has no file attachments. | Files stay on disk; messages carry paths and digests; a local review server shows media. Logged as friction. |
+| The board has no file attachments. | Files stay on disk; messages carry paths and digests; the app shows media. Logged as friction. |
 | Agent output drifts from the schema. | Validate every output; one automatic retry; then the task blocks for a person. |
 
 ## 11. Open questions
