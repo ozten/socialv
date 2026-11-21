@@ -285,7 +285,7 @@ async function listRun(runsRoot: string, run: string, req: IncomingMessage, res:
     ? `<ul class="files">\n${gates
         .map((g) => `<li><a href="${escapeHtml(base + "review/" + encodeURIComponent(g))}">${escapeHtml(g.replace(/\.html$/, ""))}</a></li>`)
         .join("\n")}\n</ul>`
-    : `<p class="muted">No gate pages yet.</p>`;
+    : `<p class="muted">No review pages yet. One appears when the run reaches an approval.</p>`;
 
   const files: Array<{ rel: string; size: number }> = [];
   await walk(runPath, "", files);
@@ -301,10 +301,13 @@ async function listRun(runsRoot: string, run: string, req: IncomingMessage, res:
 
   const body = `<p class="muted"><a href="/">Runs</a></p>
 <h1>Run ${escapeHtml(run)}</h1>
-<h2>Gate pages</h2>
+<h2>Review pages</h2>
+<p class="muted">Each page shows what one approval covers: the images or video beside their descriptions.</p>
 ${gateList}
-<h2 style="margin-top:1.5rem">Files</h2>
-${fileList}`;
+<details style="margin-top:1.5rem">
+<summary>All files in the run folder (${files.length})</summary>
+${fileList}
+</details>`;
   send(res, req, 200, "text/html; charset=utf-8", documentHtml(`${run} · socialv review`, body));
 }
 
