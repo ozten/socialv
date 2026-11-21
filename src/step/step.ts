@@ -9,6 +9,7 @@ import { appendFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { BoardError, type Board, type Message } from "openboardlol";
 import { connect } from "../board/connect.ts";
+import { shotNotes } from "../board/gate.ts";
 import { handleOf, runDir, type Config } from "../config.ts";
 import { parseBrief, type Brief } from "../schemas/brief.ts";
 import { promptFor } from "../workers/agents/common.ts";
@@ -47,7 +48,7 @@ export async function runStep(config: Config, role: string, env: NodeJS.ProcessE
     if (!holds(view.task, role, epoch)) {
       throw new ClaimLost();
     }
-    const brief = parseBrief(view.task.text);
+    let brief = parseBrief(view.task.text);
     if (brief.role !== role) {
       throw new Error(`this task is for role ${brief.role}, not ${role}`);
     }
@@ -65,8 +66,25 @@ export async function runStep(config: Config, role: string, env: NodeJS.ProcessE
     const out = inside(dir, brief.output);
     const step: StepContext = { config, role, taskId, epoch, env, me, brief, dir, out, root: view.task, replies: view.replies };
 
+    // Rework notes that name shots (`shot_03: ...`): a shot that is not named
+    // keeps its output, and a named shot sees only its own note.
+    const perShot = brief.shot ? shotNotes(brief.notes) : null;
+    let kept: Outcome | null = null;
+    if (perShot && brief.shot) {
+      const own = perShot.get(brief.shot);
+      if (own === undefined) {
+        kept = await keepOutput(step);
+        brief = { ...brief, notes: null };
+      } else {
+        brief = { ...brief, notes: own };
+      }
+      step.brief = brief;
+    }
+
     const outcome =
-      (await priorResult(step)) ?? (def.kind === "tool" ? await runTool(def, step) : await runAgent(def, step));
+      kept ??
+      (await priorResult(step)) ??
+      (def.kind === "tool" ? await runTool(def, step) : await runAgent(def, step));
     if (outcome.kind === "blocked") {
       return 0;
     }
@@ -140,6 +158,20 @@ async function priorResult(step: StepContext): Promise<Outcome | null> {
   return noted.output === step.brief.output && noted.sha256 === sha256(content)
     ? { kind: "skipped", result: noted.result }
     : null;
+}
+
+/** The output already on disk, when it is still valid: the shot was not named in the rework notes. */
+async function keepOutput(step: StepContext): Promise<Outcome | null> {
+  const content = await readIfExists(step.out);
+  if (content === null) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  if (!check(step.brief.schema, value).ok) return null;
+  return { kind: "skipped", result: await writeOutput(step, { value, summary: "kept: not named in the rework notes" }) };
 }
 
 async function writeOutput(step: StepContext, outcome: { value: unknown; summary: string }): Promise<string> {

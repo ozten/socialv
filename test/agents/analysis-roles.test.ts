@@ -158,3 +158,30 @@ test("with no brief to rule from, the fake creative director refers the question
   const decisions = await readFile(path.join(dirOf(run), "creative/decisions.md"), "utf8");
   expect(decisions).toContain(`-> ${REFERRED} (asked by local/annotator)`);
 });
+
+test("rework notes that name shots: an unnamed shot keeps its output without a session; a named shot sees only its own note", async () => {
+  const run = "a-pershot";
+  await seedAnalysis(run);
+  const first = await annotateTask(run, "shot_01");
+  expect((await claimAndStep(tb, "annotator", first.id)).code).toBe(0);
+  const file = path.join(dirOf(run), "analysis/annotations/shot_01.json");
+  const before = await readFile(file, "utf8");
+  const sessions = (await readFakeLog(dirOf(run))).length;
+
+  const notes = "shot_02: the bottle is green, not amber\nshot_03: she is standing";
+  const kept = await annotateTask(run, "shot_01", notes);
+  expect((await claimAndStep(tb, "annotator", kept.id)).code).toBe(0);
+  const after = await taskOf(tb, kept.id);
+  expect(after.task?.state).toBe("completed");
+  expect(after.task?.result).toMatch(/^kept: not named in the rework notes\noutput: analysis\/annotations\/shot_01\.json sha256:/);
+  expect(await readFile(file, "utf8")).toBe(before);
+  expect((await readFakeLog(dirOf(run))).length).toBe(sessions);
+
+  const redone = await annotateTask(run, "shot_02", notes);
+  expect((await claimAndStep(tb, "annotator", redone.id)).code).toBe(0);
+  const log = await readFakeLog(dirOf(run));
+  expect(log.length).toBe(sessions + 1);
+  const prompt = log.at(-1)!.prompt;
+  expect(prompt).toContain("the bottle is green, not amber");
+  expect(prompt).not.toContain("she is standing");
+});

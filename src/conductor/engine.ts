@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { BoardError, MAX_TASKS_PER_BATCH, type Board, type Message, type TaskInBatch } from "openboardlol";
 import { formatGateDecision, parseGateReply, REPLY_FORMS, type GateDecision } from "../board/gate.ts";
-import { gatesChannel, ALERTS, spendChannel, statusChannel, workChannel } from "../channels.ts";
-import { runDir, type Config } from "../config.ts";
+import { gatesChannel, ALERTS, spendChannel, statusChannel, STUDIO, workChannel } from "../channels.ts";
+import { handleOf, runDir, type Config } from "../config.ts";
 import { writeGatePage } from "../review/page.ts";
 import type { GateItem } from "../review/types.ts";
 import { formatBrief, parseBrief } from "../schemas/brief.ts";
@@ -549,7 +549,8 @@ export class RunDriver {
 
     let items: GateItem[] | undefined;
     for (const reply of replies.slice(packetAt + 1)) {
-      if (reply.by.handle !== this.config.owner) continue;
+      // The owner, or the owner acting through our app (design 6.2).
+      if (reply.by.handle !== this.config.owner && reply.by.handle !== handleOf(this.config, STUDIO)) continue;
       const decision = parseGateReply(reply.text);
       let problem: string | null = decision ? null : "I did not understand that.";
       if (decision?.kind === "approve" && decision.items) {

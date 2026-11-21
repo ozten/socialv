@@ -24,3 +24,5 @@ export const statusChannel = (run: string) => `progress/${run}`;
 /** Board profiles of the processes that are not roles. */
 export const CONDUCTOR = "conductor";
 export const GATEWAY = "gateway";
+/** The app, posting the owner's decisions (design 6.2). */
+export const STUDIO = "studio";

@@ -52,6 +52,35 @@ export function formatGateDecision(decision: GateDecision): string {
 export const REPLY_FORMS = [
   "- `approve`: everything in the packet",
   "- `approve 1,3`: those items only",
-  "- `revise: <notes>`: rework, with your notes",
+  "- `revise: <notes>`: rework, with your notes (a line per shot, `shot_03: <note>`, redoes only those shots)",
   "- `reject: <reason>`: stop this run",
 ].join("\n");
+
+// ----- Notes for single shots -------------------------------------------------
+
+const SHOT_NOTE = /^(shot_\d{2,})\s*:\s*(\S.*)$/;
+
+/**
+ * Rework notes that name shots, one `shot_03: what to fix` per line. Returns
+ * the note for each shot, or null when the notes are not all in that form
+ * (they then apply to every shot). A shot that is not named is kept as it is.
+ */
+export function shotNotes(notes: string | null | undefined): Map<string, string> | null {
+  const lines = (notes ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+  const out = new Map<string, string>();
+  for (const line of lines) {
+    const match = SHOT_NOTE.exec(line);
+    if (!match) return null;
+    out.set(match[1]!, out.has(match[1]!) ? `${out.get(match[1]!)} ${match[2]!}` : match[2]!);
+  }
+  return out;
+}
+
+/** Notes per shot as a `revise` decision. A note's line breaks become spaces. */
+export function reviseShots(notes: Record<string, string>): GateDecision {
+  const lines = Object.entries(notes)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([shot, note]) => `${shot}: ${note.replace(/\s+/g, " ").trim()}`);
+  return { kind: "revise", notes: lines.join("\n") };
+}
