@@ -21,4 +21,6 @@ export interface GatePage {
   items: GateItem[];
   /** The board thread to reply in. */
   threadId: string;
+  /** The thread's address on the board's web page, when known. */
+  threadUrl?: string;
 }

@@ -587,6 +587,7 @@ export class RunDriver {
       summary: node.summary,
       items,
       threadId: rec.msg.id,
+      threadUrl: `${this.config.boardUrl.replace(/\/+$/, "")}/?board=${encodeURIComponent(this.config.boardName)}&channel=${encodeURIComponent(gatesChannel(this.run))}&thread=${encodeURIComponent(rec.msg.id)}`,
     });
     const link = this.pageLink(relative);
     const packet = (lines: string[]) =>

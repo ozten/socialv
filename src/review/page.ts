@@ -54,7 +54,7 @@ export async function renderGatePage(runDirPath: string, page: GatePage): Promis
 ${items.length ? items.join("\n") : `<p class="muted">This gate has no items.</p>`}
 <section class="decide">
 <h2>How to decide</h2>
-<p>Reply in the board thread <code>${escapeHtml(page.threadId)}</code> (channel <code>approvals/${escapeHtml(page.run)}</code>) with one of:</p>
+${threadLink(page.threadUrl)}<p>Reply in the board thread <code>${escapeHtml(page.threadId)}</code> (channel <code>approvals/${escapeHtml(page.run)}</code>) with one of:</p>
 <ul>
 <li><code>approve</code> — everything above.</li>
 <li><code>approve 1,3</code> — only those numbered items; the rest stay open.</li>
@@ -64,6 +64,12 @@ ${items.length ? items.join("\n") : `<p class="muted">This gate has no items.</p
 <p class="muted">Only replies from the owner, posted after the packet, count.</p>
 </section>`;
   return documentHtml(`${page.title} · ${page.gate}`, body);
+}
+
+/** A link to the gate's thread, only for an http(s) address. */
+function threadLink(url: string | undefined): string {
+  if (!url || !/^https?:\/\//.test(url)) return "";
+  return `<p><a class="open-thread" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open this approval's thread on the board</a></p>\n`;
 }
 
 async function renderItem(runDirPath: string, item: GateItem): Promise<string> {
