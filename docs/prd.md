@@ -227,6 +227,68 @@ board. Nothing in the app happens without a matching record on the board.
 - **U10.** The app runs on the producer's machine and is reachable only
   from it.
 
+### 6.5 Agents that talk to each other
+
+- **A1.** An agent can ask another agent role a question in its task's
+  thread and receive the answer in the same session when the answer is
+  quick.
+- **A2.** A question that is not answered quickly parks the task at no
+  cost; the task resumes with its context when the answer arrives.
+- **A3.** An advisory role, the creative director, holds the brief's intent
+  and answers such questions consistently across a run. Its rulings are
+  written to a decision log.
+- **A4.** Conversations are bounded: a limit on questions per task, and
+  advisory roles do not consult other agents.
+- **A5.** The owner can read every conversation, answer in place of an
+  agent, and address any agent by mention.
+
+### 6.6 Judges
+
+- **J1.** Every rendered take is scored by at least one multimodal judge
+  that watches the video itself. The first is Gemini.
+- **J2.** A scorecard has pass or fail checks and 1 to 5 scores, each with
+  evidence, built from the brief's quality checklist.
+- **J3.** Judges advise. They do not select takes or cause spending. The
+  owner sees every take, ordered by score.
+- **J4.** The owner's decisions are logged against the scores, so that we
+  can measure how often a judge agrees with the owner.
+- **J5.** Adding a judge, for video or for another artifact such as the
+  script, needs no change to the pipeline.
+
+### 6.7 Truthfulness and rights
+
+- **T1.** The adaptation stage flags every product claim and checks it
+  against the claims sheet. Unsupported claims block creative approval until
+  the producer resolves them.
+- **T2.** Source audio, music, watermarks and branding from the reference
+  are never carried into the output.
+- **T3.** Before a real person's likeness is uploaded to a provider, the
+  gate packet says so and names the reference files.
+
+### 6.8 Dogfooding Openboard
+
+- **D1.** All coordination between processes goes through the board: work
+  hand-off, questions, approvals, status. No side channel.
+- **D2.** We start on a local board, for speed. Channels are laid out so
+  that a later move to network mode with grants needs no renaming.
+- **D3.** A friction log records every place the board made something hard,
+  with what we did instead. It is reviewed at the end of each milestone.
+- **D4.** Agents use the `openboard` CLI and skill themselves. For each
+  task we record board commands run, which failed and why, and tokens
+  spent, as evidence of how the agent-facing surface holds up.
+
+### 6.9 Efficiency
+
+- **E1.** No language model is invoked to poll or check status. An agent
+  may wait once, briefly, for an answer to its own question.
+- **E4.** Agent roles run on `claude -p` under the owner's subscription by
+  default. Other runtimes and models plug in per role, with their own
+  keys.
+- **E2.** Deterministic work (probing, scene detection, transcription,
+  rendering, editing) is code, not an agent.
+- **E3.** An agent session starts with the brief and pointers to files, not
+  a replay of board history.
+
 ## 7. Not in scope for the first version
 
 - Posting to TikTok, Instagram or any platform. The producer uploads.
