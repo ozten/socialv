@@ -41,8 +41,12 @@ wrong, the whole take is paid for again. Group scenes that share a setting
 and a subject, and keep takes with a speaking presenter separate from
 hands-only takes.
 
-Status: the grouping is in the first full render plan (`full-1`). Whether
-Seedance follows a timed shot list well enough is not yet known.
+Status: it works. Seedance followed timed shot lists of up to six shots in
+one take, with hard cuts at roughly the asked times. Two things to plan for:
+the cuts land up to half a second off the asked time (find them with scene
+detection before editing), and one shot in a grouped take can ignore an
+instruction (the tape appeared in a shot that asked for none), so write the
+edit to be able to drop a shot.
 
 ### 2. Let the voiceover set the take lengths
 
@@ -62,6 +66,35 @@ spending $19 on the rest.
 A reference sheet costs $0.15 and is reused by every take: presenter, bottle,
 boat, and the bench before and after. This is cheap next to a single wasted
 take caused by the model inventing a different boat.
+
+### 5. Make the before and after obviously different in the reference images
+
+The first reveal take ($5.20) was wasted: the "before" and "after" bench
+images were nearly the same and the prompt asked for a "modest" difference,
+so both halves of the seat came out identical. Fixing it meant re-rendering
+three takes ($11.35) so the dirt matched across them. Before rendering any
+before-and-after, put the two reference images side by side at phone size;
+if the difference is not obvious there, it will not be in the video. Give
+the reveal take an image of the end state as well as the start state.
+
+### 6. Text is cheaper in the edit than in the model
+
+The phone's caller name, the caption and the end card were added in the
+edit with tracking and overlays, at no provider cost. The generated product
+label was good enough to keep as rendered; replacing it was not worth doing.
+
+### 7. A lip-synced take carries its own audio
+
+Seedance re-voices the reference line with its own timing rather than
+playing the recording back. In the edit, use the take's own audio for
+speaking shots and the recorded voiceover only over the others; laying the
+recording over a speaking take puts the lips out of sync.
+
+### What the first video cost
+
+Saturday Wash, 42.5 seconds: $34.07 through the gateway (11 takes, 72
+generated seconds, of which 24 seconds were the redo) plus $0.75 for five
+reference images. Renders took 4 to 9 minutes per take, one at a time.
 
 ## Ideas not tried yet
 
